@@ -983,3 +983,55 @@ body {
   line-height: 1.4;
 }
 
+/* ========================================================
+   エンディングバナー（ChatGPT画像表示＆プレースホルダー）
+   ======================================================== */
+.ending-banner {
+  width: 100%;
+  max-width: 380px;
+  margin: 10px auto 14px;
+  border-radius: 10px;
+  overflow: hidden;
+  border: 2px solid #fbbf24;
+  box-shadow: 0 4px 16px rgba(251, 191, 36, 0.35);
+  background: #0f172a;
+}
+
+#ending-img {
+  width: 100%;
+  height: auto;
+  max-height: 200px;
+  object-fit: cover;
+  display: block;
+}
+
+.ending-placeholder {
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  justify-content: center;
+  padding: 16px 14px;
+  background: linear-gradient(135deg, #1e1b4b 0%, #312e81 50%, #431407 100%);
+  text-align: center;
+}
+
+.ending-badge {
+  font-size: 13px;
+  font-weight: 900;
+  color: #fef08a;
+  background: rgba(234, 88, 12, 0.4);
+  border: 1px solid #f59e0b;
+  padding: 3px 12px;
+  border-radius: 12px;
+  margin-bottom: 6px;
+  letter-spacing: 1px;
+}
+
+.ending-subtext {
+  font-size: 12px;
+  color: #fed7aa;
+  margin: 0;
+  line-height: 1.4;
+  font-weight: bold;
+}
+

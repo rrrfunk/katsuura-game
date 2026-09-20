@@ -4,7 +4,7 @@
   <meta charset="UTF-8">
   <meta name="viewport" content="width=device-width, initial-scale=1.0, user-scalable=no">
   <title>ニャンと多忙な勝浦朝市！〜おつかい猫のヤンキー大乱闘〜 【SFC超美麗版】</title>
-  <link rel="stylesheet" href="style.css?v=20260908_1715">
+  <link rel="stylesheet" href="style.css?v=20260920_ending">
 </head>
 <body>
   <div id="game-container">
@@ -128,6 +128,15 @@
           <div id="star-rating" class="stars">★★★</div>
           <div class="result-rank-title" id="rank-title">勝浦の守護猫</div>
           
+          <!-- ★エンディング画像表示枠（ChatGPT画像配置用） -->
+          <div id="ending-banner" class="ending-banner hidden">
+            <img id="ending-img" src="assets/ending.jpg?v=20260920" alt="勝浦朝市 平和エンディング" onerror="this.style.display='none'; document.getElementById('ending-placeholder').style.display='flex';" onload="this.style.display='block'; document.getElementById('ending-placeholder').style.display='none';" />
+            <div id="ending-placeholder" class="ending-placeholder">
+              <span class="ending-badge">🌅 HAPPY ENDING 🌅</span>
+              <p class="ending-subtext">暴走族総長を撃破！勝浦朝市に平和と活気が戻ったニャ！</p>
+            </div>
+          </div>
+          
           <div class="result-stats">
             <div class="stat-row">
               <span>生存時間:</span>
@@ -164,6 +173,6 @@
     </div>
   </div>
 
-  <script src="game.js?v=20260920_custom_se_v1"></script>
+  <script src="game.js?v=20260920_ending_fanfare_v2"></script>
 </body>
 </html>

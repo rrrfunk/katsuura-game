@@ -289,6 +289,64 @@ class SoundSystem {
     });
   }
 
+  // ★完全勝利クリア専用：感動と栄光のグランドファンファーレ（金管ブラス合奏）！
+  playVictoryFanfare() {
+    if (!this.soundEnabled) return;
+    this.init();
+    if (!this.ctx) return;
+
+    // トランペット／ブラス風の音を合成する内部関数
+    const playBrass = (freq, time, dur, vol = 0.24) => {
+      try {
+        const osc = this.ctx.createOscillator();
+        const osc2 = this.ctx.createOscillator();
+        const filter = this.ctx.createBiquadFilter();
+        const gain = this.ctx.createGain();
+
+        osc.type = 'sawtooth';
+        osc.frequency.setValueAtTime(freq, time);
+
+        osc2.type = 'triangle';
+        osc2.frequency.setValueAtTime(freq * 1.003, time); // 豊かな倍音と厚み
+
+        filter.type = 'lowpass';
+        filter.frequency.setValueAtTime(freq * 3.5, time);
+        filter.frequency.exponentialRampToValueAtTime(freq * 1.3, time + dur);
+
+        gain.gain.setValueAtTime(0.001, time);
+        gain.gain.linearRampToValueAtTime(vol, time + 0.04);
+        gain.gain.setValueAtTime(vol * 0.88, time + dur * 0.7);
+        gain.gain.exponentialRampToValueAtTime(0.001, time + dur);
+
+        osc.connect(filter);
+        osc2.connect(filter);
+        filter.connect(gain);
+        gain.connect(this.ctx.destination);
+
+        osc.start(time);
+        osc2.start(time);
+        osc.stop(time + dur);
+        osc2.stop(time + dur);
+      } catch(e) {}
+    };
+
+    const now = this.ctx.currentTime + 0.05;
+    // イントロ：勇ましい連打（C5 C5 C5）
+    playBrass(523.25, now + 0.00, 0.14, 0.22);
+    playBrass(523.25, now + 0.16, 0.14, 0.22);
+    playBrass(523.25, now + 0.32, 0.14, 0.22);
+    // 上昇アルペジオ（C5 -> E5 -> G5）
+    playBrass(523.25, now + 0.48, 0.36, 0.25);
+    playBrass(659.25, now + 0.86, 0.32, 0.26);
+    playBrass(783.99, now + 1.20, 0.32, 0.28);
+    // 栄光のクライマックス重厚和音！（C5 + E5 + G5 + C6）
+    const chordTime = now + 1.55;
+    playBrass(523.25, chordTime, 2.2, 0.20);
+    playBrass(659.25, chordTime, 2.2, 0.22);
+    playBrass(783.99, chordTime, 2.2, 0.24);
+    playBrass(1046.50, chordTime, 2.4, 0.30);
+  }
+
   // 8. カツオブーメラン（ヒュンヒュン！と回転する風切り音）
   playBoomerang() {
     this.playTone(380, 'triangle', 0.09, 0.12);
@@ -502,7 +560,15 @@ class SoundSystem {
     if (!this.soundEnabled) return;
     this.init();
 
-    this.stopMikoshiSound();
+    // 既に神輿軍団の音が鳴り響いている場合は、巻き戻さず太鼓を追加連打して熱気をブースト！
+    if (this.mikoshiActiveSource) {
+      this.playTaiko();
+      return;
+    }
+    if (this.audioPool && this.audioPool.mikoshi && !this.audioPool.mikoshi.paused && this.audioPool.mikoshi.currentTime > 0.1) {
+      this.playTaiko();
+      return;
+    }
 
     // 1. Web Audio API バッファ再生
     if (this.ctx && this.customBuffers && this.customBuffers.mikoshi) {
@@ -1578,80 +1644,72 @@ class AsaichiGame {
     this.eventState = 'NONE';
   }
 
-  // ★クライマックス最終決戦：勝浦ヤンキー総長軍団の大量襲来！！
+  // ★クライマックス最終決戦：真のラスボス「初代 勝浦暴走族総長」降臨！！
   startFinalBossBattle() {
     if (this.finalBossPhase) return;
     this.finalBossPhase = true;
-    this.remainingBossCount = 3; // 総長3体を倒すと完全勝利クリア！
+    this.remainingBossCount = 1; // ラスボス総長1体との真剣勝負！
 
     this.sound.playMeowRoar();
     this.sound.playTaiko();
-    this.screenShake = 0.6;
+    this.screenShake = 0.65;
 
-    this.showLevelUpBanner('⚠️ 最終決戦！勝浦ヤンキー総長軍団が大量乱入！！', '🔥 ボスヤンキー総長（残3体）を全滅させて朝市を守り抜け！');
-
-    // 既存の雑魚敵を豪快に吹き飛ばす
+    // ★ユーザー要望：ラスボスが出た時は、他の雑魚敵を完全に0にする！
     this.enemies.forEach(e => {
-      if (!e.isBoss) {
-        this.damageEnemy(e, 999);
-      }
+      for (let s = 0; s < 6; s++) this.addParticle(e.x, e.y, 'smoke');
     });
+    this.enemies = []; // 他の敵を完全消去（敵0体）！
 
-    // ボスヤンキー総長（3体）を画面の三方から一斉スポーン！
-    const offsets = [
-      { x: -380, y: 500 },
-      { x: 380, y: 520 },
-      { x: 0, y: 640 }
-    ];
-    offsets.forEach((off, idx) => {
-      const boss = this.spawnEnemy('boss_yankee', this.player.x + off.x, Math.max(460, Math.min(650, this.player.y + off.y - 500)));
-      boss.isBoss = true;
-      boss.isFinalBoss = true;
-      boss.hp = 800; // 爽快に殴り倒せる絶妙なHP
-      boss.maxHp = 800;
-      boss.speed = 1.9;
-      boss.name = `ヤンキー総長 [第${idx + 1}大隊]`;
-      for (let s = 0; s < 12; s++) {
-        this.addParticle(boss.x, boss.y, 'spark');
-      }
-    });
+    this.showLevelUpBanner('⚠️ 最終決戦！初代 勝浦暴走族総長 降臨！！', '🔥 ラスボス総長を倒して、勝浦朝市の平和を奪還せよ！');
 
-    // 親衛隊（特攻服ヤンキー 4体）もお供としてスポーン
-    for (let i = 0; i < 4; i++) {
-      const angle = (i / 4) * Math.PI * 2;
-      const tokko = this.spawnEnemy('tokko', this.player.x + Math.cos(angle) * 300, Math.max(460, Math.min(640, this.player.y + Math.sin(angle) * 120)));
-      tokko.hp = 45;
+    // プレイヤーの正面から堂々と現れる真のラスボス総長（1体単騎）！
+    const bossX = this.player.x + (this.player.dir === 'left' ? -340 : 340);
+    const bossY = Math.max(480, Math.min(640, this.player.y));
+    const boss = this.spawnEnemy('boss_yankee', bossX, bossY);
+    boss.isBoss = true;
+    boss.isFinalBoss = true;
+    boss.hp = 2200; // 手応えと爽快感を両立したボスHP
+    boss.maxHp = 2200;
+    boss.speed = 2.0;
+    boss.atk = 42;
+    boss.name = '👑 初代 勝浦暴走族総長';
+
+    // ボス降臨の特大スパーク
+    for (let s = 0; s < 24; s++) {
+      this.addParticle(boss.x, boss.y, 'spark');
     }
   }
 
-  // ★完全勝利クリア演出（大爆発・ファンファーレ・紙吹雪）
+  // ★完全勝利クリア演出（敵0状態・戦闘BGM停止・勝利ファンファーレ・エンディング移行）
   triggerVictoryClear() {
     if (this.isVictoryClear) return;
     this.isVictoryClear = true;
 
-    // 残っている敵をすべて大爆発で一網打尽
+    // ★ユーザー要望：ラスボスを倒しきったら敵0状態に！
     this.enemies.forEach(e => {
       e.hp = 0;
-      for (let s = 0; s < 10; s++) this.addParticle(e.x, e.y, 'confetti');
+      for (let s = 0; s < 14; s++) this.addParticle(e.x, e.y, 'confetti');
     });
-    this.enemies = [];
+    this.enemies = []; // 完全な敵0状態！
 
-    this.sound.playLevelUp();
+    // ★戦闘BGM完全停止＆勝利のグランドファンファーレ再生！
+    this.sound.stopBGM();
+    this.sound.playVictoryFanfare();
     this.sound.playTaiko();
-    this.screenShake = 0.55;
+    this.screenShake = 0.6;
 
     // 画面いっぱいに大量の勝利花火＆紙吹雪
-    for (let i = 0; i < 70; i++) {
-      this.addParticle(this.player.x + (Math.random() - 0.5) * 450, this.player.y + (Math.random() - 0.5) * 260, 'confetti');
-      this.addParticle(this.player.x + (Math.random() - 0.5) * 450, this.player.y + (Math.random() - 0.5) * 260, 'spark');
+    for (let i = 0; i < 90; i++) {
+      this.addParticle(this.player.x + (Math.random() - 0.5) * 500, this.player.y + (Math.random() - 0.5) * 300, 'confetti');
+      this.addParticle(this.player.x + (Math.random() - 0.5) * 500, this.player.y + (Math.random() - 0.5) * 300, 'spark');
     }
 
-    this.showLevelUpBanner('🎉 勝浦朝市平和奪還！完全勝利クリア！！', '見事にヤンキー総長軍団を全滅させたニャ！');
+    this.showLevelUpBanner('🎉 勝浦朝市平和奪還！完全勝利！！', '暴走族総長を撃破！勝浦朝市に平和が戻ったニャ！！');
 
-    // 1.8秒後にリザルト画面へ遷移
+    // ファンファーレが響き渡った後（3.2秒後）に感動のエンディング画面へ！
     setTimeout(() => {
       this.endGame(true);
-    }, 1800);
+    }, 3200);
   }
 
   // ========================================================
@@ -2334,34 +2392,40 @@ class AsaichiGame {
   }
 
   // ========================================================
-  // 勝浦神輿軍団爆走（白装束の担ぎ手たちが黄金神輿で大突進！）
+  // 勝浦神輿軍団爆走（白装束の担ぎ手たちが黄金神輿で大突進！★複数出現OK！）
   // ========================================================
-  triggerMikoshiRush() {
+  triggerMikoshiRush(count = 2) {
     const dir = Math.random() < 0.5 ? 1 : -1; // 1: 左から右, -1: 右から左
-    const startX = dir === 1 ? this.camera.x - 340 : this.camera.x + this.viewW + 340;
-    // プレイヤーのy座標近く、または朝市メイン通りの中央（y: 450〜630）
-    const y = Math.max(450, Math.min(this.worldH - 150, this.player.y + (Math.random() - 0.5) * 30));
 
-    this.mikoshiRushes.push({
-      x: startX,
-      y: y,
-      dir: dir,
-      speed: 440, // ドッシリと力強く、かつ迫力満点の突進スピード！
-      w: 240,     // 黄金神輿と担ぎ手たちの堂々たるワイドサイズ！
-      h: 134,
-      hitEnemies: [],
-      smokeTimer: 0,
-      bobTimer: 0,
-      shoutTimer: 0
-    });
+    for (let c = 0; c < count; c++) {
+      setTimeout(() => {
+        if (this.state !== 'PLAY') return;
+        const startX = dir === 1 ? this.camera.x - 340 - c * 180 : this.camera.x + this.viewW + 340 + c * 180;
+        // 上下段に散らして朝市通りを面で制圧！
+        const yOffset = (c === 0 ? -40 : 40) + (Math.random() - 0.5) * 20;
+        const y = Math.max(450, Math.min(this.worldH - 140, this.player.y + yOffset));
 
-    // ★祭り太鼓 ＋ 男衆の威勢のいい「ソイヤ！ソイヤ！」掛け声！
-    this.sound.playTaiko();
-    this.sound.playMikoshiChant();
-    this.screenShake = 0.35; // 重厚な地響き！
+        this.mikoshiRushes.push({
+          x: startX,
+          y: y,
+          dir: dir,
+          speed: 440 + Math.random() * 40,
+          w: 240,     // 黄金神輿と担ぎ手たちの堂々たるワイドサイズ！
+          h: 134,
+          hitEnemies: [],
+          smokeTimer: 0,
+          bobTimer: Math.random() * 10,
+          shoutTimer: 0
+        });
 
-    // 開幕の祭り掛け声ポップアップ！
-    this.addComicPopup(this.player.x, this.player.y - 45, '🏮 勝浦神輿 参上！！', '#f59e0b');
+        // 祭り太鼓 ＋ 神輿音源
+        this.sound.playTaiko();
+        this.sound.playMikoshiSound();
+      }, c * 140);
+    }
+
+    this.screenShake = 0.38; // 重厚な地響き！
+    this.addComicPopup(this.player.x, this.player.y - 45, '🏮 勝浦神輿軍団 参上！！', '#f59e0b');
   }
 
   updateMikoshiRushes(dt) {
@@ -2381,13 +2445,13 @@ class AsaichiGame {
         this.addParticle(t.x + (Math.random() - 0.5) * 80, t.y + 20, 'spark');
       }
 
-      // 定期的な威勢のいい掛け声ポップアップ（「ソリャ！」「セイヤ！」「大漁！」）
-      if (t.shoutTimer > 0.55) {
+      // 定期的な威勢のいい掛け声ポップアップ＆太鼓
+      if (t.shoutTimer > 0.65) {
         t.shoutTimer = 0;
         const shouts = ['🏮 ソリャ！', '🏮 セイヤ！', '🏮 ヨイショ！', '🏮 大漁！'];
         const shout = shouts[Math.floor(Math.random() * shouts.length)];
         this.addComicPopup(t.x + (Math.random() - 0.5) * 60, t.y - 45 - Math.random() * 20, shout, '#fbbf24');
-        this.sound.playMikoshiChant();
+        this.sound.playTaiko();
       }
 
       // 敵との豪快な衝突判定（当たり判定半径125px！）
@@ -2598,6 +2662,9 @@ class AsaichiGame {
   // 6. 敵ウェーブ・スポーンマネージャー（段階的プログレッシブ仕様）
   // ========================================================
   updateEnemyWaves(dt) {
+    // ★ユーザー要望：ラスボス登場中および完全勝利後は、雑魚敵スポーンを完全停止！
+    if (this.finalBossPhase || this.isVictoryClear) return;
+
     this.enemySpawnTimer += dt;
     this.hordeTimer = (this.hordeTimer || 0) + dt;
     const time = this.survivalTime;
@@ -2663,18 +2730,12 @@ class AsaichiGame {
       this.screenShake = 0.2;
     }
 
-    // ボス出現トリガー（邪魔な文字ポップアップは廃止し、画面シェイクと効果音で演出）
+    // ボス出現トリガー（中盤60秒の巨大キョン王）
     if (time >= 60 && !this.bossSpawned1) {
       this.bossSpawned1 = true;
       this.spawnEnemy('boss_kyon');
       this.sound.playLevelUp();
       this.screenShake = 0.4;
-    }
-    if (time >= 120 && !this.bossSpawned2) {
-      this.bossSpawned2 = true;
-      this.spawnEnemy('boss_yankee');
-      this.sound.playMeowRoar();
-      this.screenShake = 0.45;
     }
   }
 
@@ -2695,29 +2756,29 @@ class AsaichiGame {
       sx = Math.max(30, Math.min(this.worldW - 30, sx));
     }
 
-    // 敵タイプ別ステータス（薙ぎ払い爽快仕様）
+    // 敵タイプ別ステータス（難易度アップ＆スリルある戦闘バランス）
     let conf = {
       type,
       hp: 24, maxHp: 24,
-      speed: 2.2, atk: 10,
+      speed: 2.2, atk: 16,
       w: 36, h: 48,
       color: '#1e293b'
     };
 
     if (type === 'tsuppari') {
-      conf = { type, hp: 26, maxHp: 26, speed: 2.2, atk: 10, w: 36, h: 48, color: '#1e293b' };
+      conf = { type, hp: 26, maxHp: 26, speed: 2.2, atk: 18, w: 36, h: 48, color: '#1e293b' };
     } else if (type === 'tokko') {
-      conf = { type, hp: 55, maxHp: 55, speed: 1.6, atk: 16, w: 42, h: 50, color: '#dc2626' };
+      conf = { type, hp: 55, maxHp: 55, speed: 1.6, atk: 26, w: 42, h: 50, color: '#dc2626' };
     } else if (type === 'skater') {
-      conf = { type, hp: 16, maxHp: 16, speed: 3.6, atk: 8, w: 36, h: 46, color: '#7c3aed' };
+      conf = { type, hp: 16, maxHp: 16, speed: 3.6, atk: 14, w: 36, h: 46, color: '#7c3aed' };
     } else if (type === 'kyon') {
-      conf = { type, hp: 20, maxHp: 20, speed: 3.4, atk: 8, w: 32, h: 32, color: '#b45309' };
+      conf = { type, hp: 20, maxHp: 20, speed: 3.4, atk: 15, w: 32, h: 32, color: '#b45309' };
     } else if (type === 'tonbi') {
-      conf = { type, hp: 22, maxHp: 22, speed: 4.2, atk: 12, w: 38, h: 34, color: '#78350f', isFlying: true };
+      conf = { type, hp: 22, maxHp: 22, speed: 4.2, atk: 20, w: 38, h: 34, color: '#78350f', isFlying: true };
     } else if (type === 'boss_kyon') {
-      conf = { type, hp: 500, maxHp: 500, speed: 2.4, atk: 22, w: 68, h: 68, color: '#b45309', isBoss: true, name: '巨大キョン王' };
+      conf = { type, hp: 500, maxHp: 500, speed: 2.4, atk: 35, w: 68, h: 68, color: '#b45309', isBoss: true, name: '巨大キョン王' };
     } else if (type === 'boss_yankee') {
-      conf = { type, hp: 1100, maxHp: 1100, speed: 2.0, atk: 28, w: 64, h: 72, color: '#991b1b', isBoss: true, name: '暴走族総長' };
+      conf = { type, hp: 1200, maxHp: 1200, speed: 2.1, atk: 42, w: 64, h: 72, color: '#991b1b', isBoss: true, name: '暴走族総長' };
     }
 
     const enemyObj = {
@@ -2883,16 +2944,17 @@ class AsaichiGame {
 
     // ★最終決戦：ボスヤンキー総長撃破チェック！
     if (this.finalBossPhase && enemy.isFinalBoss) {
-      this.remainingBossCount = Math.max(0, this.remainingBossCount - 1);
+      this.remainingBossCount = 0;
+      this.enemies = []; // ★ユーザー要望：ボスを倒しきったら敵0状態に！
       this.sound.playTaiko();
-      this.addComicPopup(enemy.x, enemy.y - 30, '💥 総長撃破！！', '#ef4444');
-      for (let s = 0; s < 30; s++) {
-        this.addParticle(enemy.x + (Math.random() - 0.5) * 60, enemy.y + (Math.random() - 0.5) * 60, 'spark');
+      this.addComicPopup(enemy.x, enemy.y - 30, '💥 総長完全撃破！！', '#ef4444');
+      for (let s = 0; s < 40; s++) {
+        this.addParticle(enemy.x + (Math.random() - 0.5) * 80, enemy.y + (Math.random() - 0.5) * 80, 'spark');
         this.addParticle(enemy.x, enemy.y, 'confetti');
       }
 
-      // ボス総長をすべて倒した瞬間に大勝利完全クリア！
-      if (this.remainingBossCount <= 0 && !this.isVictoryClear) {
+      // ラスボス撃破で完全勝利クリア演出へ！
+      if (!this.isVictoryClear) {
         this.triggerVictoryClear();
         return;
       }
@@ -2912,15 +2974,14 @@ class AsaichiGame {
     const expVal = enemy.isBoss ? 16 : (enemy.type === 'tokko' || enemy.type === 'kyon') ? 3 : 1;
     this.addExp(expVal);
 
-    // 敵撃破時のアイテムドロップ（序盤は12%でポロッと落ちて楽しく、終盤は上限厳格化）
+    // 敵撃破時のアイテムドロップ（★アイテム増量仕様：爽快に拾って大乱戦！）
     const nowSec = this.survivalTime || 0;
-    const isEarlyGame = nowSec < 60; // 最初の1分間は序盤アイテムボーナス！
-    const maxItems = isEarlyGame ? 3 : 2; // 序盤は最大3個まで許容
+    const maxItems = 5; // 画面上に最大5個まで許容
     const currentItemCount = this.dropItems ? this.dropItems.length : 0;
     const canDropByCount = currentItemCount < maxItems;
     const isBossDrop = enemy.isBoss;
-    const dropRate = isBossDrop ? 1.0 : (isEarlyGame ? 0.12 : 0.035); // 序盤12%、以降3.5%
-    const cooldownTime = isEarlyGame ? 3.0 : 6.0;
+    const dropRate = isBossDrop ? 1.0 : 0.14; // 通常敵でも14%でポロッとドロップ！
+    const cooldownTime = 1.8;
     const cooldownOk = !this.lastEnemyDropSec || (nowSec - this.lastEnemyDropSec >= cooldownTime);
 
     if (canDropByCount && cooldownOk && (isBossDrop || Math.random() < dropRate)) {
@@ -2936,7 +2997,7 @@ class AsaichiGame {
         type: dropType,
         x: enemy.x,
         y: enemy.y,
-        life: 20 // 生存時間20秒（程よく自然消滅して散らからない）
+        life: 25 // 生存時間25秒
       });
       for (let s = 0; s < 6; s++) {
         this.addParticle(enemy.x, enemy.y, dropType === 'coffee' ? 'smoke' : dropType === 'tantan' ? 'spark' : 'confetti');
@@ -2944,20 +3005,19 @@ class AsaichiGame {
     }
   }
 
-  // アイテム定期ランダム発生（★平和モード中は出現させず、戦闘開始後に出現！）
+  // アイテム定期ランダム発生（★アイテム増量：戦闘中はテンポよくポンポン湧く！）
   updateRandomItemSpawns(dt) {
     if (!this.firstYankeeEventDone) return; // 戦闘開始前はアイテム自然発生させない！
 
-    if (this.itemSpawnTimer === undefined) this.itemSpawnTimer = 2.0;
+    if (this.itemSpawnTimer === undefined) this.itemSpawnTimer = 1.5;
     this.itemSpawnTimer -= dt;
 
     if (this.itemSpawnTimer <= 0) {
-      const isEarlyGame = (this.survivalTime || 0) < 60;
-      // 次の出現タイマー（序盤は5〜7.5秒のハイペース、以降は13〜16秒のゆったりペース）
-      this.itemSpawnTimer = isEarlyGame ? (5.0 + Math.random() * 2.5) : (13.0 + Math.random() * 3.5);
+      // 次の出現タイマー（3.2〜5.0秒のハイペースで常時ポップ！）
+      this.itemSpawnTimer = 3.2 + Math.random() * 2.0;
 
-      // フィールド上の最大数（序盤は3個、中盤以降は2個で散らかり防止）
-      const maxItems = isEarlyGame ? 3 : 2;
+      // フィールド上の最大数は5個
+      const maxItems = 5;
       if (this.dropItems && this.dropItems.length >= maxItems) return;
 
       this.spawnRandomMarketItem();
@@ -2966,8 +3026,7 @@ class AsaichiGame {
 
   spawnRandomMarketItem() {
     const p = this.player;
-    const isEarlyGame = (this.survivalTime || 0) < 60;
-    const maxItems = isEarlyGame ? 3 : 2;
+    const maxItems = 5;
 
     // 画面全体の上限を超えていたら生成しない
     if (this.dropItems && this.dropItems.length >= maxItems) return;
@@ -5107,8 +5166,12 @@ class AsaichiGame {
     // クリアまで残り時間タイマー表示（生存時間ではなくカウントダウン！）
     const timerDisplay = document.getElementById('timer-display');
     if (timerDisplay) {
-      if (this.finalBossPhase) {
-        timerDisplay.textContent = `🔥 決戦! 残${Math.max(0, this.remainingBossCount)}体`;
+      if (this.isVictoryClear) {
+        timerDisplay.textContent = '🎉 完全制覇！';
+        timerDisplay.style.color = '#10b981';
+        timerDisplay.style.fontWeight = 'bold';
+      } else if (this.finalBossPhase) {
+        timerDisplay.textContent = '🔥 決戦! 総長を倒せ！';
         timerDisplay.style.color = '#ef4444';
         timerDisplay.style.fontWeight = 'bold';
       } else {
@@ -5144,13 +5207,25 @@ class AsaichiGame {
     const s = Math.floor(this.survivalTime % 60);
     const timeStr = `${String(m).padStart(2, '0')}:${String(s).padStart(2, '0')}`;
 
-    if (headline) headline.textContent = isClear ? '🎉 勝浦朝市平和奪還！クリア！' : '💀 ミケ力尽きる…ゲームオーバー';
-    if (starRating) starRating.textContent = isClear ? '★★★★★' : this.survivalTime > 60 ? '★★★' : '★';
-    if (rankTitle) {
-      if (isClear) rankTitle.textContent = '勝浦朝市の伝説守護神猫';
-      else if (this.survivalTime > 100) rankTitle.textContent = '勇敢なる朝市パトロール隊長';
-      else if (this.survivalTime > 50) rankTitle.textContent = '駆け出しの元気な看板猫';
-      else rankTitle.textContent = '朝寝坊ののんびり子猫';
+    const endingBanner = document.getElementById('ending-banner');
+    const restartBtn = document.getElementById('restart-btn');
+
+    if (isClear) {
+      if (headline) headline.textContent = '🎉 勝浦朝市平和奪還！完全勝利！！';
+      if (starRating) starRating.textContent = '★★★★★';
+      if (rankTitle) rankTitle.textContent = '勝浦朝市 伝説の守護神大明神猫';
+      if (endingBanner) endingBanner.classList.remove('hidden');
+      if (restartBtn) restartBtn.textContent = 'もう一度朝市を守るニャ！（REPLAY）';
+    } else {
+      if (headline) headline.textContent = '💀 ミケ力尽きる…ゲームオーバー';
+      if (starRating) starRating.textContent = this.survivalTime > 60 ? '★★★' : '★';
+      if (rankTitle) {
+        if (this.survivalTime > 100) rankTitle.textContent = '勇敢なる朝市パトロール隊長';
+        else if (this.survivalTime > 50) rankTitle.textContent = '駆け出しの元気な看板猫';
+        else rankTitle.textContent = '朝寝坊ののんびり子猫';
+      }
+      if (endingBanner) endingBanner.classList.add('hidden');
+      if (restartBtn) restartBtn.textContent = 'もう一度リベンジするニャ！';
     }
 
     document.getElementById('final-survival-time').textContent = timeStr;
