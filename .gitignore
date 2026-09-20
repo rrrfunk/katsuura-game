@@ -4,7 +4,8 @@
 *.log
 node_modules/
 
-# 不要なテストHTML・生成スクリプト
+# 不要なテストHTML・生成スクリプト・退避アーカイブ
+_archive/
 generate_clean_title.html
 make_perfect_clean_sky.sh
 render_pro_title*.html
