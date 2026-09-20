@@ -5216,6 +5216,7 @@ class AsaichiGame {
     const timeStr = `${String(m).padStart(2, '0')}:${String(s).padStart(2, '0')}`;
 
     const endingBanner = document.getElementById('ending-banner');
+    const gameoverBanner = document.getElementById('gameover-banner');
     const restartBtn = document.getElementById('restart-btn');
 
     if (isClear) {
@@ -5223,6 +5224,7 @@ class AsaichiGame {
       if (starRating) starRating.textContent = '★★★★★';
       if (rankTitle) rankTitle.textContent = '勝浦朝市 伝説の守護神大明神猫';
       if (endingBanner) endingBanner.classList.remove('hidden');
+      if (gameoverBanner) gameoverBanner.classList.add('hidden');
       if (restartBtn) restartBtn.textContent = 'もう一度朝市を守るニャ！（REPLAY）';
     } else {
       if (headline) headline.textContent = '💀 ミケ力尽きる…ゲームオーバー';
@@ -5233,6 +5235,7 @@ class AsaichiGame {
         else rankTitle.textContent = '朝寝坊ののんびり子猫';
       }
       if (endingBanner) endingBanner.classList.add('hidden');
+      if (gameoverBanner) gameoverBanner.classList.remove('hidden');
       if (restartBtn) restartBtn.textContent = 'もう一度リベンジするニャ！';
     }
 
