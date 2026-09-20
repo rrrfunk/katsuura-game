@@ -4,7 +4,7 @@
   <meta charset="UTF-8">
   <meta name="viewport" content="width=device-width, initial-scale=1.0, user-scalable=no">
   <title>ニャンと多忙な勝浦朝市！〜おつかい猫のヤンキー大乱闘〜 【SFC超美麗版】</title>
-  <link rel="stylesheet" href="style.css?v=20260921_final_ed">
+  <link rel="stylesheet" href="style.css?v=20260921_fix_banners">
 </head>
 <body>
   <div id="game-container">
@@ -129,8 +129,8 @@
           <div class="result-rank-title" id="rank-title">勝浦の守護猫</div>
           
           <!-- ★エンディング画像表示枠（ChatGPT画像配置用） -->
-          <div id="ending-banner" class="ending-banner hidden">
-            <img id="ending-img" src="assets/ending.jpg?v=20260921_final_ed" alt="勝浦朝市 平和エンディング" onerror="this.style.display='none'; document.getElementById('ending-placeholder').style.display='flex';" onload="this.style.display='block'; document.getElementById('ending-placeholder').style.display='none';" />
+          <div id="ending-banner" class="ending-banner hidden" style="display: none;">
+            <img id="ending-img" src="assets/ending.jpg?v=20260921_final_ed2" alt="勝浦朝市 平和エンディング" onerror="this.style.display='none'; document.getElementById('ending-placeholder').style.display='flex';" onload="this.style.display='block'; document.getElementById('ending-placeholder').style.display='none';" />
             <div id="ending-placeholder" class="ending-placeholder">
               <span class="ending-badge">🌅 HAPPY ENDING 🌅</span>
               <p class="ending-subtext">暴走族総長を撃破！勝浦朝市に平和と活気が戻ったニャ！</p>
@@ -138,8 +138,8 @@
           </div>
           
           <!-- ★ゲームオーバー画像表示枠（ChatGPT画像配置用） -->
-          <div id="gameover-banner" class="ending-banner hidden">
-            <img id="gameover-img" src="assets/gameover.jpg?v=20260921_final_go" alt="ゲームオーバー" onerror="this.style.display='none';" onload="this.style.display='block';" />
+          <div id="gameover-banner" class="ending-banner hidden" style="display: none;">
+            <img id="gameover-img" src="assets/gameover.jpg?v=20260921_final_go2" alt="ゲームオーバー" onerror="this.style.display='none';" onload="this.style.display='block';" />
           </div>
           
           <div class="result-stats">
@@ -178,6 +178,6 @@
     </div>
   </div>
 
-  <script src="game.js?v=20260921_balance_reborn"></script>
+  <script src="game.js?v=20260921_fix_banners"></script>
 </body>
 </html>

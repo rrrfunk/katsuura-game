@@ -359,6 +359,8 @@ body {
   50% { transform: scale(1.03); filter: brightness(1.2); }
 }
 
+.hidden,
+.ending-banner.hidden,
 #title-overlay.hidden,
 .overlay.hidden { 
   display: none !important; 

@@ -5223,8 +5223,14 @@ class AsaichiGame {
       if (headline) headline.textContent = '🎉 勝浦朝市平和奪還！完全勝利！！';
       if (starRating) starRating.textContent = '★★★★★';
       if (rankTitle) rankTitle.textContent = '勝浦朝市 伝説の守護神大明神猫';
-      if (endingBanner) endingBanner.classList.remove('hidden');
-      if (gameoverBanner) gameoverBanner.classList.add('hidden');
+      if (endingBanner) {
+        endingBanner.classList.remove('hidden');
+        endingBanner.style.display = 'block';
+      }
+      if (gameoverBanner) {
+        gameoverBanner.classList.add('hidden');
+        gameoverBanner.style.display = 'none';
+      }
       if (restartBtn) restartBtn.textContent = 'もう一度朝市を守るニャ！（REPLAY）';
     } else {
       if (headline) headline.textContent = '💀 ミケ力尽きる…ゲームオーバー';
@@ -5234,8 +5240,14 @@ class AsaichiGame {
         else if (this.survivalTime > 50) rankTitle.textContent = '駆け出しの元気な看板猫';
         else rankTitle.textContent = '朝寝坊ののんびり子猫';
       }
-      if (endingBanner) endingBanner.classList.add('hidden');
-      if (gameoverBanner) gameoverBanner.classList.remove('hidden');
+      if (endingBanner) {
+        endingBanner.classList.add('hidden');
+        endingBanner.style.display = 'none';
+      }
+      if (gameoverBanner) {
+        gameoverBanner.classList.remove('hidden');
+        gameoverBanner.style.display = 'block';
+      }
       if (restartBtn) restartBtn.textContent = 'もう一度リベンジするニャ！';
     }
 
