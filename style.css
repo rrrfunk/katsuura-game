@@ -997,11 +997,16 @@ body {
   background: #000;
 }
 
-#ending-img {
+.ending-banner img {
   width: 100%;
   height: auto;
   display: block;
   image-rendering: auto;
+}
+
+#gameover-banner {
+  border-color: #ef4444;
+  box-shadow: 0 6px 24px rgba(239, 68, 68, 0.45);
 }
 
 .ending-placeholder {
