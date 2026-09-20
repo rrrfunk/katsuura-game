@@ -2392,36 +2392,43 @@ class AsaichiGame {
   }
 
   // ========================================================
+  // ========================================================
   // 勝浦神輿軍団爆走（白装束の担ぎ手たちが黄金神輿で大突進！★複数出現OK！）
   // ========================================================
   triggerMikoshiRush(count = 2) {
     const dir = Math.random() < 0.5 ? 1 : -1; // 1: 左から右, -1: 右から左
 
-    for (let c = 0; c < count; c++) {
-      setTimeout(() => {
-        if (this.state !== 'PLAY') return;
-        const startX = dir === 1 ? this.camera.x - 340 - c * 180 : this.camera.x + this.viewW + 340 + c * 180;
-        // 上下段に散らして朝市通りを面で制圧！
-        const yOffset = (c === 0 ? -40 : 40) + (Math.random() - 0.5) * 20;
-        const y = Math.max(450, Math.min(this.worldH - 140, this.player.y + yOffset));
+    const spawnOne = (c) => {
+      if (this.state !== 'PLAYING') return;
+      const startX = dir === 1 ? this.camera.x - 340 - c * 180 : this.camera.x + this.viewW + 340 + c * 180;
+      // 上下段に散らして朝市通りを面で制圧！
+      const yOffset = (c === 0 ? -40 : 40) + (Math.random() - 0.5) * 20;
+      const y = Math.max(450, Math.min(this.worldH - 140, this.player.y + yOffset));
 
-        this.mikoshiRushes.push({
-          x: startX,
-          y: y,
-          dir: dir,
-          speed: 440 + Math.random() * 40,
-          w: 240,     // 黄金神輿と担ぎ手たちの堂々たるワイドサイズ！
-          h: 134,
-          hitEnemies: [],
-          smokeTimer: 0,
-          bobTimer: Math.random() * 10,
-          shoutTimer: 0
-        });
+      this.mikoshiRushes.push({
+        x: startX,
+        y: y,
+        dir: dir,
+        speed: 440 + Math.random() * 40,
+        w: 240,     // 黄金神輿と担ぎ手たちの堂々たるワイドサイズ！
+        h: 134,
+        hitEnemies: [],
+        smokeTimer: 0,
+        bobTimer: Math.random() * 10,
+        shoutTimer: 0
+      });
 
-        // 祭り太鼓 ＋ 神輿音源
-        this.sound.playTaiko();
-        this.sound.playMikoshiSound();
-      }, c * 140);
+      // 祭り太鼓 ＋ 神輿音源
+      this.sound.playTaiko();
+      this.sound.playMikoshiSound();
+    };
+
+    // 1基目は即座に同期出撃！
+    spawnOne(0);
+
+    // 2基目以降はわずかなディレイ（140ms）で時間差追従出撃！
+    for (let c = 1; c < count; c++) {
+      setTimeout(() => spawnOne(c), c * 140);
     }
 
     this.screenShake = 0.38; // 重厚な地響き！
@@ -3112,12 +3119,11 @@ class AsaichiGame {
       for (let s = 0; s < 8; s++) this.addParticle(p.x, p.y, 'confetti');
       this.spawnAllyCat();
     } else if (item.type === 'tantan') {
-      // 🍜 勝浦タンタン麺：激辛熱気で全快＋勝浦神輿軍団が大突進！！
-      this.sound.playHeal();
-      p.hp = Math.min(p.maxHp, p.hp + 25);
-      for (let s = 0; s < 12; s++) this.addParticle(p.x, p.y, 'spark');
-      for (let s = 0; s < 6; s++) this.addParticle(p.x, p.y, 'smoke');
-      this.triggerMikoshiRush();
+      // 🍜 勝浦タンタン麺：★ユーザー要望によりHP回復は不要！勝浦神輿軍団の大突進（敵一網打尽）に特化！
+      this.sound.playTaiko();
+      for (let s = 0; s < 16; s++) this.addParticle(p.x, p.y, 'spark');
+      for (let s = 0; s < 8; s++) this.addParticle(p.x, p.y, 'smoke');
+      this.triggerMikoshiRush(2); // 神輿2基の迫力編隊大突進！
     }
   }
 
