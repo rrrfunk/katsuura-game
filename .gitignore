@@ -1,0 +1,27 @@
+.DS_Store
+*.bak
+*.bak*
+*.log
+node_modules/
+
+# 不要なテストHTML・生成スクリプト
+generate_clean_title.html
+make_perfect_clean_sky.sh
+render_pro_title*.html
+test_soft_blend.html
+
+# 未使用・重複アセット（原本はローカルに保持）
+assets/bg_market.jpg
+assets/cat_sprites.jpg
+assets/items.jpg
+assets/map_market.jpg
+assets/map_port.jpg
+assets/map_vertical.png
+assets/npc_sprites.jpg
+assets/npc_sprites.png
+assets/tandem_bike.jpg
+assets/title_bg_clean_test.jpg
+assets/title_bg_gpt.jpg
+assets/title_bg_original_backup.jpg
+assets/title_bg_test.jpg
+assets/yankee_sprites.jpg

@@ -1,0 +1,169 @@
+<!DOCTYPE html>
+<html lang="ja">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0, user-scalable=no">
+  <title>ニャンと多忙な勝浦朝市！〜おつかい猫のヤンキー大乱闘〜 【SFC超美麗版】</title>
+  <link rel="stylesheet" href="style.css?v=20260908_1715">
+</head>
+<body>
+  <div id="game-container">
+    <!-- 上部ヘッダーUI（ダダサバイバー風SFCアーケード調HUD） -->
+    <header id="ui-header" class="hidden">
+      <div class="header-left">
+        <div class="stage-badge">勝浦朝市 ⛩️ 遠見岬神社サバイバー</div>
+        <div class="level-box">
+          <span class="level-badge" id="player-level-badge">LV. 1</span>
+          <div class="exp-bar-container" title="経験値ゲージ（小判を拾ってレベルアップ！）">
+            <div id="exp-bar-fill" class="exp-bar-fill"></div>
+            <span id="exp-text" class="exp-text">0 / 8 EXP</span>
+          </div>
+        </div>
+      </div>
+      <div class="header-right">
+        <!-- プレイヤーHPバー -->
+        <div class="hp-box">
+          <span class="hp-icon">❤️</span>
+          <div class="hp-bar-container">
+            <div id="hp-bar-fill" class="hp-bar-fill"></div>
+          </div>
+          <span id="hp-text" class="hp-text">100 / 100</span>
+        </div>
+        <!-- クリアまで残り時間 -->
+        <div class="status-box">
+          <span class="label">クリアまで</span>
+          <span id="timer-display" class="value">02:00</span>
+        </div>
+        <!-- 討伐数（K.O.） -->
+        <div class="status-box ko-box">
+          <span class="label">撃破数</span>
+          <span id="ko-display" class="value">0 体</span>
+        </div>
+        <!-- 小判（小判廃止のため非表示） -->
+        <div class="status-box" style="display: none;">
+          <span class="label">小判</span>
+          <span id="score-display" class="value">💰 0</span>
+        </div>
+        <button id="help-btn" class="ui-btn" title="操作説明">❓ 説明</button>
+        <button id="sound-btn" class="ui-btn" title="BGM/効果音 ON/OFF">🔊 BGM ON</button>
+      </div>
+    </header>
+
+    <!-- メインゲームキャンバス（ビューポート 880 x 495） -->
+    <div id="canvas-wrapper">
+      <canvas id="gameCanvas" width="880" height="495" tabindex="0"></canvas>
+
+      <!-- 1. タイトル画面（ChatGPT生成の超美麗1枚絵全面＋STARTボタン連動ヒットボックス） -->
+      <div id="title-overlay" class="overlay title-screen" style="background: url('assets/title_bg.jpg?v=20260908_gpt_final') center center / cover no-repeat !important; cursor: pointer;">
+        <button id="btn-quick-start" class="sfc-start-hitbox" title="START 出撃！"></button>
+      </div>
+
+      <!-- 2. レベルアップ選択オーバーレイ（非表示のまま互換保持） -->
+      <div id="levelup-overlay" class="overlay hidden">
+        <div class="overlay-card levelup-card">
+          <div class="levelup-header">
+            <div class="levelup-badge">⭐ LEVEL UP! ⭐</div>
+            <h2 class="levelup-title">ミケがパワーアップ！</h2>
+          </div>
+          <div id="skill-choices" class="skill-choices-grid"></div>
+        </div>
+      </div>
+
+      <!-- 3. 操作説明チュートリアルオーバーレイ -->
+      <div id="tutorial-overlay" class="overlay hidden">
+        <div class="overlay-card tutorial-card">
+          <h2 class="tutorial-title">🐾 勝浦朝市サバイバー指南書（遊び方）</h2>
+          
+          <div class="tutorial-grid">
+            <!-- カード1: 移動とオート攻撃 -->
+            <div class="tuto-item highlight">
+              <div class="tuto-icon">🐾🖱️📱</div>
+              <div class="tuto-header">1. 移動 ＆ オート攻撃</div>
+              <p>【PC】マウスを動かしてスイスイ移動！（WASDキーもOK）<br>
+              【スマホ】右下のスティックをグリグリ操作！<br>
+              <strong>攻撃は完全フルオート！</strong>最寄りの敵へ自動で鋭い爪撃や回転カツオが炸裂！</p>
+            </div>
+
+            <!-- カード2: ノンストップ自動進化ツリー -->
+            <div class="tuto-item highlight">
+              <div class="tuto-icon">⭐🐾🐟⚡</div>
+              <div class="tuto-header">2. ノンストップ自動進化！</div>
+              <p>敵を倒してレベルアップすると<strong>画面を止めずに即座に自動進化</strong>！<br>
+              ツメLv1 ➜ カツオLv1 ➜ 子猫Lv1 ➜ ツメLv2 ➜ カツオLv2 ➜ 子猫Lv2 ➜ ツメLv3 ➜ カツオLv3 ➜ 子猫Lv3 ➜ 勝浦神罰落雷！</p>
+            </div>
+
+            <!-- カード3: ６０代爆走タンデムクロスバイク -->
+            <div class="tuto-item highlight">
+              <div class="tuto-icon">🚲💨👴👵</div>
+              <div class="tuto-header">3. ６０代爆走タンデムバイク！</div>
+              <p>マップ上にランダム出現する<strong>アイスコーヒー</strong>を拾うと、元気な60代男女が乗るタンデムクロスバイクが猛スピードで横断！<br>
+              <strong>「チリンチリ〜ン！」</strong>と敵集団をバタバタ跳ね飛ばす特大ダメージ！</p>
+            </div>
+
+            <!-- カード4: 勝浦名物わらび餅（助太刀にゃんこ参上！） -->
+            <div class="tuto-item">
+              <div class="tuto-icon">🍡🐾⚡</div>
+              <div class="tuto-header">4. 朝市名物わらび餅 ＆ 助太刀</div>
+              <p>🍡<strong>南蛮屋わらび餅</strong>: 拾うと忍びクロなどの助太刀猫が電光石火で敵を急襲！<br>
+              ☕<strong>SPICE COFFEE</strong>: 暴走タンデム自転車が出現して敵を一網打尽！<br>
+              ※アイテムはマップ上に定期的にランダム発生するニャ！</p>
+            </div>
+          </div>
+
+          <div class="tutorial-summary-banner">
+            🎯 <strong>超シンプル操作</strong>：ボタン操作は一切不要！PCはマウス追従、スマホは右下スティックで直感操作！
+          </div>
+
+          <div class="menu-btn-group">
+            <button id="btn-tutorial-start" class="start-button">気合い入れて出撃するニャ！（START）</button>
+            <button id="btn-tutorial-back" class="sub-action-button">タイトルへ戻る</button>
+          </div>
+        </div>
+      </div>
+
+      <!-- 4. リザルト画面オーバーレイ -->
+      <div id="result-overlay" class="overlay hidden">
+        <div class="overlay-card">
+          <h2 class="result-title" id="result-headline">本日の朝市パトロール終了！</h2>
+          <div id="star-rating" class="stars">★★★</div>
+          <div class="result-rank-title" id="rank-title">勝浦の守護猫</div>
+          
+          <div class="result-stats">
+            <div class="stat-row">
+              <span>生存時間:</span>
+              <strong id="final-survival-time">00:00</strong>
+            </div>
+            <div class="stat-row">
+              <span>敵撃破数（K.O.）:</span>
+              <strong id="final-ko-count">0 体</strong>
+            </div>
+            <div class="stat-row">
+              <span>到達レベル:</span>
+              <strong id="final-level">LV. 1</strong>
+            </div>
+            <div class="stat-row">
+              <span>獲得小判:</span>
+              <strong id="final-score">💰 0</strong>
+            </div>
+          </div>
+
+          <button id="restart-btn" class="start-button">もう一度リベンジするニャ！</button>
+        </div>
+      </div>
+      <!-- スマホ用：右下バーチャルスティック（グリグリ操作） -->
+      <div id="joystick-zone">
+        <div id="joystick-base">
+          <div class="joystick-ring"></div>
+          <div class="joystick-cross h"></div>
+          <div class="joystick-cross v"></div>
+          <div id="joystick-knob">
+            <span class="knob-icon">🐾</span>
+          </div>
+        </div>
+      </div>
+    </div>
+  </div>
+
+  <script src="game.js?v=20260920_custom_se_v1"></script>
+</body>
+</html>
