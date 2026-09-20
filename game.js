@@ -1790,9 +1790,9 @@ class AsaichiGame {
     if (p.shieldBuffTimer > 0) p.shieldBuffTimer -= dt;
     if (p.scratchAnimTimer > 0) p.scratchAnimTimer -= dt; // ひっかき攻撃モーションタイマー
 
-    // 猫缶パッシブHPリジェネ
+    // 猫缶パッシブHPリジェネ（適正な微量回復でスリルを維持）
     if (this.skills.can.level > 0) {
-      const regen = this.skills.can.level * 1.5 * dt;
+      const regen = this.skills.can.level * 0.4 * dt;
       p.hp = Math.min(p.maxHp, p.hp + regen);
     }
 
@@ -2981,14 +2981,14 @@ class AsaichiGame {
     const expVal = enemy.isBoss ? 16 : (enemy.type === 'tokko' || enemy.type === 'kyon') ? 3 : 1;
     this.addExp(expVal);
 
-    // 敵撃破時のアイテムドロップ（★アイテム増量仕様：爽快に拾って大乱戦！）
+    // 敵撃破時のアイテムドロップ（★ゲームバランス調整：適度なドロップで緊張感を維持！）
     const nowSec = this.survivalTime || 0;
-    const maxItems = 5; // 画面上に最大5個まで許容
+    const maxItems = 3; // 画面上に最大3個まで
     const currentItemCount = this.dropItems ? this.dropItems.length : 0;
     const canDropByCount = currentItemCount < maxItems;
     const isBossDrop = enemy.isBoss;
-    const dropRate = isBossDrop ? 1.0 : 0.14; // 通常敵でも14%でポロッとドロップ！
-    const cooldownTime = 1.8;
+    const dropRate = isBossDrop ? 1.0 : 0.06; // 通常敵は6%（適度な出現率）
+    const cooldownTime = 4.0;
     const cooldownOk = !this.lastEnemyDropSec || (nowSec - this.lastEnemyDropSec >= cooldownTime);
 
     if (canDropByCount && cooldownOk && (isBossDrop || Math.random() < dropRate)) {
@@ -3004,7 +3004,7 @@ class AsaichiGame {
         type: dropType,
         x: enemy.x,
         y: enemy.y,
-        life: 25 // 生存時間25秒
+        life: 20 // 生存時間20秒
       });
       for (let s = 0; s < 6; s++) {
         this.addParticle(enemy.x, enemy.y, dropType === 'coffee' ? 'smoke' : dropType === 'tantan' ? 'spark' : 'confetti');
@@ -3012,19 +3012,19 @@ class AsaichiGame {
     }
   }
 
-  // アイテム定期ランダム発生（★アイテム増量：戦闘中はテンポよくポンポン湧く！）
+  // アイテム定期ランダム発生（★適度な出現ペースでハラハラサバイバル！）
   updateRandomItemSpawns(dt) {
     if (!this.firstYankeeEventDone) return; // 戦闘開始前はアイテム自然発生させない！
 
-    if (this.itemSpawnTimer === undefined) this.itemSpawnTimer = 1.5;
+    if (this.itemSpawnTimer === undefined) this.itemSpawnTimer = 3.0;
     this.itemSpawnTimer -= dt;
 
     if (this.itemSpawnTimer <= 0) {
-      // 次の出現タイマー（3.2〜5.0秒のハイペースで常時ポップ！）
-      this.itemSpawnTimer = 3.2 + Math.random() * 2.0;
+      // 次の出現タイマー（6.0〜9.0秒の適正ペース）
+      this.itemSpawnTimer = 6.0 + Math.random() * 3.0;
 
-      // フィールド上の最大数は5個
-      const maxItems = 5;
+      // フィールド上の最大数は3個
+      const maxItems = 3;
       if (this.dropItems && this.dropItems.length >= maxItems) return;
 
       this.spawnRandomMarketItem();
@@ -3033,7 +3033,7 @@ class AsaichiGame {
 
   spawnRandomMarketItem() {
     const p = this.player;
-    const maxItems = 5;
+    const maxItems = 3;
 
     // 画面全体の上限を超えていたら生成しない
     if (this.dropItems && this.dropItems.length >= maxItems) return;
@@ -3102,24 +3102,26 @@ class AsaichiGame {
     }
   }
 
-  // アイテム回収効果（アイテム取得で助太刀にゃんこ、爆走バイク、勝浦神輿軍団が援軍に駆けつける！）
+  // アイテム回収効果（★ユーザー要望：HP回復の過剰を完全是正！回復ではなく援護攻撃・バフに特化！）
   collectItem(item) {
     const p = this.player;
 
     if (item.type === 'coffee') {
-      // ☕ SPICE COFFEE（アイスコーヒー）：暴走タンデム自転車が走る！
-      this.sound.playHeal();
-      p.hp = Math.min(p.maxHp, p.hp + 20);
+      // ☕ SPICE COFFEE（アイスコーヒー）：HP回復なし！移動速度1.3倍加速バフ ＋ タンデム自転車突進！
+      p.speedBuffTimer = 4.5; // 4.5秒間ダッシュ！
       for (let s = 0; s < 8; s++) this.addParticle(p.x, p.y, 'smoke');
+      this.addComicPopup(p.x, p.y - 30, '☕ カフェイン加速！', '#38bdf8');
       this.triggerTandemBikeRush();
     } else if (item.type === 'warabi') {
-      // 🍡 南蛮屋わらび餅：お助けネコが走る！
+      // 🍡 南蛮屋わらび餅：HP回復はわずか+3（ほんの気持ち程度）！助太刀ネコ出撃 ＋ 接触防御シールド！
       this.sound.playHeal();
-      p.hp = Math.min(p.maxHp, p.hp + 20);
+      p.hp = Math.min(p.maxHp, p.hp + 3); // わずか+3のみ（過剰回復を防止）
+      p.shieldBuffTimer = 3.5; // 3.5秒間シールド展開（敵接触を弾く）
       for (let s = 0; s < 8; s++) this.addParticle(p.x, p.y, 'confetti');
+      this.addComicPopup(p.x, p.y - 30, '🍡 助太刀ネコ参上！', '#10b981');
       this.spawnAllyCat();
     } else if (item.type === 'tantan') {
-      // 🍜 勝浦タンタン麺：★ユーザー要望によりHP回復は不要！勝浦神輿軍団の大突進（敵一網打尽）に特化！
+      // 🍜 勝浦タンタン麺：HP回復ゼロ！勝浦神輿軍団の大突進（敵一網打尽）に特化！
       this.sound.playTaiko();
       for (let s = 0; s < 16; s++) this.addParticle(p.x, p.y, 'spark');
       for (let s = 0; s < 8; s++) this.addParticle(p.x, p.y, 'smoke');
