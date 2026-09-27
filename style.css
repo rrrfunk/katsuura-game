@@ -292,37 +292,20 @@ body {
   height: 8.8%;
   border-radius: 8px;
   background: transparent;
-  border: 2px solid rgba(254, 240, 138, 0.45);
-  box-shadow: 
-    0 0 16px rgba(250, 204, 21, 0.5),
-    inset 0 0 10px rgba(254, 240, 138, 0.2);
+  border: none;
+  outline: none;
+  box-shadow: none;
   cursor: pointer;
-  animation: startButtonPulse 1.3s infinite ease-in-out;
-  transition: all 0.15s ease;
+  transition: transform 0.1s ease;
   z-index: 10;
 }
 
 .sfc-start-hitbox:hover {
-  transform: translateX(-50%) scale(1.05);
-  border-color: #ffffff;
-  box-shadow: 
-    0 0 28px rgba(250, 204, 21, 0.95),
-    inset 0 0 18px rgba(255, 255, 255, 0.4);
+  transform: translateX(-50%) scale(1.02);
 }
 
 .sfc-start-hitbox:active {
-  transform: translateX(-50%) scale(0.97);
-}
-
-@keyframes startButtonPulse {
-  0%, 100% {
-    box-shadow: 0 0 12px rgba(250, 204, 21, 0.45), inset 0 0 8px rgba(254, 240, 138, 0.15);
-    border-color: rgba(254, 240, 138, 0.4);
-  }
-  50% {
-    box-shadow: 0 0 24px rgba(250, 204, 21, 0.85), inset 0 0 14px rgba(255, 255, 255, 0.35);
-    border-color: rgba(255, 255, 255, 0.85);
-  }
+  transform: translateX(-50%) scale(0.96);
 }
 
 .sfc-help-button {

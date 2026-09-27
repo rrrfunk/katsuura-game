@@ -218,7 +218,7 @@ class AsaichiGame {
     }
   }
 
-  // コライダー設定（遠見岬神社石段・鳥居・屋台・テラス席の精密実寸マッピング）
+  // コライダー設定（ユーザー指定の立入禁止エリア完全反映）
   initColliders() {
     this.colliders = [
       // 外周境界壁
@@ -229,38 +229,38 @@ class AsaichiGame {
 
       // 北側建物本体・神社石段（立ち入り禁止）
       { x: 0, y: 0, w: 520, h: 410 },   // 北町屋・左側
-      { x: 440, y: 0, w: 345, h: 465 }, // 遠見岬神社 雛人形の赤い絨毯石段＆奥の森
+      { x: 440, y: 0, w: 345, h: 460 }, // 遠見岬神社 雛人形ひな壇＆奥の森（石段上部）
       { x: 840, y: 0, w: 536, h: 410 }, // 北町屋・右側
 
       // 鳥居の柱 ＆ 石灯籠
-      { x: 520, y: 465, w: 50, h: 75 }, // 鳥居左柱
-      { x: 785, y: 465, w: 50, h: 75 }, // 鳥居右柱
+      { x: 520, y: 460, w: 50, h: 80 }, // 鳥居左柱
+      { x: 785, y: 460, w: 50, h: 80 }, // 鳥居右柱
       { x: 825, y: 410, w: 40, h: 65 }, // 石灯籠
 
-      // 北側屋台（左側：テラス・SPICE COFFEE・朝市惣菜）
-      { x: 0, y: 430, w: 70, h: 120 },    // 左テラス席1
-      { x: 120, y: 430, w: 110, h: 120 }, // 左テラス席2
-      { x: 235, y: 435, w: 75, h: 60 },   // SPICE COFFEE看板
-      { x: 215, y: 495, w: 70, h: 75 },   // SPICE自転車
-      { x: 285, y: 465, w: 100, h: 105 }, // SPICE木製ワゴン
-      { x: 395, y: 435, w: 110, h: 105 }, // 朝市惣菜テーブル（赤い布）
-      { x: 400, y: 540, w: 40, h: 55 },   // 朝市メニュー黒板看板
+      // 左側屋台群全体（テラス席・SPICE COFFEE自転車・木製ワゴン・朝市惣菜白テント・黒板看板）
+      // 画像2の赤枠：テラス席〜白テントまで一体化して完全立ち入り禁止！
+      { x: 0, y: 410, w: 515, h: 165 },
 
-      // 北側屋台（右側：青白干物棚・トロ箱・紺色屋台・野菜棚）
-      { x: 855, y: 475, w: 175, h: 155 }, // 魚トロ箱群（水色の氷箱「ICE」3列）
-      { x: 920, y: 410, w: 110, h: 65 },  // 青白ストライプ干物吊るし棚
-      { x: 1030, y: 440, w: 150, h: 200 }, // 紺色屋台テント（野菜果物）
-      { x: 1180, y: 470, w: 196, h: 170 }, // 右端野菜果物陳列木箱棚
+      // 右側屋台群全体（魚トロ箱群ICE・青白干物棚・紺色テント・八百屋・野菜木箱棚）
+      // 画像1の赤枠：水色トロ箱〜右端まで一体化して完全立ち入り禁止！
+      { x: 855, y: 410, w: 521, h: 165 },
 
       // 南側屋台（手前側）
-      { x: 0, y: 685, w: 85, h: 80 },    // 七輪台
-      { x: 175, y: 690, w: 85, h: 78 },  // 南テーブル1
-      { x: 325, y: 690, w: 85, h: 78 },  // 南テーブル2
-      { x: 470, y: 690, w: 90, h: 78 },  // 南テーブル3（緑ストライプ傘）
-      { x: 630, y: 690, w: 180, h: 78 }, // 南干物魚棚
-      { x: 810, y: 690, w: 100, h: 78 }, // 南紅白屋台
-      { x: 910, y: 690, w: 466, h: 78 }  // 南緑屋台・野菜果物棚
+      // 画像1・2の赤枠：中央の石畳通路（x: 570〜630）のみ開け、左右を手前まで立ち入り禁止！
+      { x: 0, y: 650, w: 570, h: 118 },   // 南左屋台（七輪・パラソル席・客群）
+      { x: 630, y: 650, w: 746, h: 118 }  // 南右屋台（南干物台・魚箱・屋台・野菜台）
     ];
+  }
+
+  // 立入禁止エリア内外判定ヘルパー（マージン指定可能）
+  isInsideForbiddenArea(x, y, margin = 0) {
+    for (let c of this.colliders) {
+      if (x >= c.x - margin && x <= c.x + c.w + margin &&
+          y >= c.y - margin && y <= c.y + c.h + margin) {
+        return true;
+      }
+    }
+    return false;
   }
 
   // 足元接地衝突判定
@@ -1755,14 +1755,14 @@ class AsaichiGame {
     // 4.0秒未満は敵スポーン完全停止（平和な朝市散策タイム！）
     if (time < 4.0) return;
 
-    // 序盤は超ゆったりスタートし、段階的に増えていく王道サバイバー曲線！
-    let spawnInterval = 2.0;
-    let maxEnemies = 5;
+    // 序盤から爽快感を感じられるよう敵の出現頻度＆上限数を全体的にアップ！
+    let spawnInterval = 1.2;
+    let maxEnemies = 10;
     let spawnBatch = 1;
 
-    if (time > 22) { spawnInterval = 1.0; maxEnemies = 14; spawnBatch = 1; }
-    if (time > 45) { spawnInterval = 0.5; maxEnemies = 35; spawnBatch = 2; }
-    if (time > 75) { spawnInterval = 0.25; maxEnemies = 70; spawnBatch = 3; }
+    if (time > 20) { spawnInterval = 0.65; maxEnemies = 22; spawnBatch = 2; }
+    if (time > 45) { spawnInterval = 0.35; maxEnemies = 45; spawnBatch = 2; }
+    if (time > 75) { spawnInterval = 0.20; maxEnemies = 85; spawnBatch = 3; }
 
     if (this.enemySpawnTimer >= spawnInterval && this.enemies.length < maxEnemies) {
       this.enemySpawnTimer = 0;
@@ -1771,11 +1771,11 @@ class AsaichiGame {
         if (this.enemies.length >= maxEnemies) break;
         const rand = Math.random();
 
-        if (time < 22) {
-          // 序盤（4〜22秒）：ヤンキーのみが1体ずつゆっくり出現！（最大5体）
+        if (time < 20) {
+          // 序盤（4〜20秒）：ヤンキーが左右・下の通路から次々に出現！
           this.spawnEnemy(rand < 0.7 ? 'tsuppari' : 'skater');
         } else if (time < 45) {
-          // 22秒以降：キョン初登場！
+          // 20秒以降：キョン初登場！
           if (rand < 0.5 || !this.firstKyonEventDone) {
             const kyon = this.spawnEnemy('kyon');
             if (!this.firstKyonEventDone && kyon) {
@@ -1800,11 +1800,11 @@ class AsaichiGame {
       }
     }
 
-    // ラッシュイベント（序盤は発生させず、中盤以降に発生。ポップアップは出さずにスマートに演出）
-    if (time >= 40 && this.hordeTimer >= (time >= 70 ? 8.0 : 12.0)) {
+    // ラッシュイベント（中盤以降に発生。画面外通路から大軍勢が押し寄せる！）
+    if (time >= 40 && this.hordeTimer >= (time >= 70 ? 7.0 : 10.0)) {
       this.hordeTimer = 0;
       const hordeType = Math.random() < 0.5 ? 'kyon' : 'tsuppari';
-      const hordeCount = time >= 70 ? 16 : 8;
+      const hordeCount = time >= 70 ? 22 : 12;
       for (let h = 0; h < hordeCount; h++) {
         if (this.enemies.length < maxEnemies + 15) {
           this.spawnEnemy(hordeType);
@@ -1822,21 +1822,32 @@ class AsaichiGame {
     }
   }
 
-  // 画面外の安全な歩道に敵をスポーン
+  // 画面左・右・下の通路から敵をスポーン（立入禁止エリアからの発生は完全禁止！）
   spawnEnemy(type, fixedX = null, fixedY = null) {
     let sx = fixedX, sy = fixedY;
 
     if (sx === null || sy === null) {
-      // プレイヤーから適度に離れた画面端・通り沿いにスポーン
-      const p = this.player;
-      const angle = Math.random() * Math.PI * 2;
-      const dist = 480 + Math.random() * 120;
-      sx = p.x + Math.cos(angle) * dist;
-      sy = p.y + Math.sin(angle) * dist;
-
-      // 広くなったメインストリート（430〜670）に敵をスポーン
-      sy = Math.max(430, Math.min(670, sy));
-      sx = Math.max(30, Math.min(this.worldW - 30, sx));
+      // ユーザー要望：画面左・右・下の3本の通路から発生！
+      const corridorChoice = Math.random();
+      if (corridorChoice < 0.35) {
+        // 通路1: 画面左端（メインストリート y: 585〜640）
+        sx = -30;
+        sy = 585 + Math.random() * 55;
+      } else if (corridorChoice < 0.70) {
+        // 通路2: 画面右端（メインストリート y: 585〜640）
+        sx = this.worldW + 30;
+        sy = 585 + Math.random() * 55;
+      } else {
+        // 通路3: 画面下の石畳中央通路（x: 575〜625, y: 画面下外）
+        sx = 575 + Math.random() * 50;
+        sy = this.worldH + 30;
+      }
+    } else {
+      // 固定座標が指定された場合でも、立入禁止エリア内にあれば安全な通路位置にスナップ
+      if (this.isInsideForbiddenArea(sx, sy, 10)) {
+        sx = Math.random() < 0.5 ? -30 : this.worldW + 30;
+        sy = 585 + Math.random() * 55;
+      }
     }
 
     // 敵タイプ別ステータス（難易度アップ＆スリルある戦闘バランス）
@@ -2076,14 +2087,22 @@ class AsaichiGame {
         ? candidates[Math.floor(Math.random() * candidates.length)]
         : ['coffee', 'warabi', 'tantan'][Math.floor(Math.random() * 3)];
 
+      // ドロップ位置が立入禁止エリア内、または壁に近すぎる場合は安全な通路位置にスナップ！
+      let dropX = enemy.x;
+      let dropY = enemy.y;
+      if (this.isInsideForbiddenArea(dropX, dropY, 20)) {
+        dropY = 590 + Math.random() * 45; // メインストリート（590〜635）
+        dropX = Math.max(30, Math.min(this.worldW - 30, dropX));
+      }
+
       this.dropItems.push({
         type: dropType,
-        x: enemy.x,
-        y: enemy.y,
+        x: dropX,
+        y: dropY,
         life: 20 // 生存時間20秒
       });
       for (let s = 0; s < 6; s++) {
-        this.addParticle(enemy.x, enemy.y, dropType === 'coffee' ? 'smoke' : dropType === 'tantan' ? 'spark' : 'confetti');
+        this.addParticle(dropX, dropY, dropType === 'coffee' ? 'smoke' : dropType === 'tantan' ? 'spark' : 'confetti');
       }
     }
   }
@@ -2107,6 +2126,7 @@ class AsaichiGame {
     }
   }
 
+  // 朝市名物アイテムの自然スポーン（立入禁止エリアには絶対に出さない安全歩道限定！）
   spawnRandomMarketItem() {
     const p = this.player;
     const maxItems = 3;
@@ -2114,15 +2134,41 @@ class AsaichiGame {
     // 画面全体の上限を超えていたら生成しない
     if (this.dropItems && this.dropItems.length >= maxItems) return;
 
-    // プレイヤーから120〜220px離れた歩道（朝市メイン通り y: 480〜640、x: 100〜1250）
-    const angle = Math.random() * Math.PI * 2;
-    const dist = 120 + Math.random() * 100;
-    let spawnX = p.x + Math.cos(angle) * dist;
-    let spawnY = p.y + Math.sin(angle) * dist;
+    // ユーザー要望：立入禁止エリア（赤いエリア）には一切アイテムを発生させない！
+    // 安全な歩道エリア（メインストリート、鳥居前広場、南中央通路）から選定
+    let spawnX, spawnY;
+    let foundSafeSpot = false;
 
-    // メイン通り沿いにクランプ
-    spawnX = Math.max(120, Math.min(this.worldW - 120, spawnX));
-    spawnY = Math.max(480, Math.min(650, spawnY));
+    for (let attempt = 0; attempt < 25; attempt++) {
+      const areaType = Math.random();
+      if (areaType < 0.72) {
+        // A. メインストリート横断大通り（x: 40〜1336, y: 588〜638）
+        spawnX = 40 + Math.random() * (this.worldW - 80);
+        spawnY = 588 + Math.random() * 48;
+      } else if (areaType < 0.88) {
+        // B. 鳥居前石畳広場（x: 580〜770, y: 480〜565）
+        spawnX = 580 + Math.random() * 190;
+        spawnY = 480 + Math.random() * 85;
+      } else {
+        // C. 南石畳中央通路（x: 580〜620, y: 655〜735）
+        spawnX = 580 + Math.random() * 40;
+        spawnY = 655 + Math.random() * 75;
+      }
+
+      // 障害物の境界から20px以上離れており、プレイヤーから適度な距離（70〜450px）にあるか検証
+      const distToPlayer = Math.hypot(p.x - spawnX, p.y - spawnY);
+      if (!this.isInsideForbiddenArea(spawnX, spawnY, 20) && distToPlayer > 70 && distToPlayer < 450) {
+        foundSafeSpot = true;
+        break;
+      }
+    }
+
+    if (!foundSafeSpot) {
+      // フォールバック：中央大通りの絶対安全な中心座標
+      spawnX = p.x + (Math.random() < 0.5 ? -140 : 140);
+      spawnX = Math.max(80, Math.min(this.worldW - 80, spawnX));
+      spawnY = 605 + (Math.random() - 0.5) * 20;
+    }
 
     // アイテム種別決定：
     // 初回は確定で「アイスコーヒー」！
@@ -2153,10 +2199,14 @@ class AsaichiGame {
   }
 
   // ========================================================
-  // 7. ドロップアイテム回収（吸い込みなし！プレイヤー直接接触時のみ回収）
+  // 7. ドロップアイテム回収（マグネット吸引 ＆ 取得判定拡大でストレス完全ゼロ！）
   // ========================================================
   updateDropItems(dt) {
     const p = this.player;
+    // 磁石吸引距離（基本85px、マグネットスキルでさらに拡大！）
+    const magnetRadius = 85 + (this.skills.magnet ? this.skills.magnet.level * 45 : 0);
+    // 直接回収判定距離（以前の26から45へ拡大！）
+    const collectRadius = 45;
 
     for (let i = this.dropItems.length - 1; i >= 0; i--) {
       const item = this.dropItems[i];
@@ -2164,12 +2214,19 @@ class AsaichiGame {
 
       const dist = Math.hypot(p.x - item.x, p.y - item.y);
 
-      // ★吸引は完全撤廃！アイテムはその場に静止。
-      // プレイヤーと直接接触（当たり判定 dist < 26）した時のみ回収！
-      if (dist < 26) {
+      // ★直接回収判定
+      if (dist < collectRadius) {
         this.collectItem(item);
         this.dropItems.splice(i, 1);
         continue;
+      }
+
+      // ★マグネット吸引：プレイヤーが近づくとアイテムがスーッと引き寄せられる！
+      // 障害物のキワに落ちていてもプレイヤーに吸い付いて確実に拾える！
+      if (dist < magnetRadius && dist > 0) {
+        const pullSpeed = Math.min(dist, 420 * dt);
+        item.x += ((p.x - item.x) / dist) * pullSpeed;
+        item.y += ((p.y - item.y) / dist) * pullSpeed;
       }
 
       if (item.life <= 0) {
