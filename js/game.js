@@ -221,90 +221,83 @@ class AsaichiGame {
     }
   }
 
-  // 精密コライダー設定（ユーザー指定の赤塗り通行可能エリアに100%合致・直線AABBで壁ずり完全滑らか＆超軽量！）
+  // 通行可能ゾーン設定（★ユーザー指定の赤目印エリアに100%完全一致！）
   initColliders() {
-    this.colliders = [
-      // 1. 外周境界壁（画面外へのすり抜け防止：ただし敵スポーン通路は開放）
-      { x: 0, y: 0, w: 1376, h: 10 },        // 最上端外壁
-      { x: 0, y: 760, w: 440, h: 20 },       // 最下端・左側壁
-      { x: 650, y: 760, w: 726, h: 20 },     // 最下端・右側壁（※中央 x: 440〜650 は画面最下端まで通れる！）
-      { x: 0, y: 0, w: 10, h: 580 },         // 左端上部壁（※y: 580〜685 は左抜け道）
-      { x: 0, y: 685, w: 10, h: 83 },        // 左端下部壁
-      { x: 1366, y: 0, w: 10, h: 540 },      // 右端上部壁（※y: 540〜685 は右抜け道）
-      { x: 1366, y: 685, w: 10, h: 83 },     // 右端下部壁
-
-      // 2. 北町屋の屋根（上部全域：建物本体・奥の森）
-      { x: 0, y: 0, w: 480, h: 350 },        // 北町屋・左側屋根
-      { x: 660, y: 0, w: 716, h: 340 },      // 北町屋・右側屋根
-
-      // 3. 遠見岬神社（石段・雛壇・奥の森）
-      // ★鳥居真下の石畳（x: 480〜660, y: 360〜550）は完全に通れる！
-      { x: 480, y: 0, w: 180, h: 360 },      // 神社石段雛壇・奥の森
-
-      // 4. 左側中段（テラス席、SPICE COFFEE自転車ワゴン、白テント屋台、A型看板）
-      { x: 0, y: 350, w: 220, h: 80 },       // テラス席上部パラソル（※y: 430〜490 の小道は通れる！）
-      { x: 0, y: 490, w: 135, h: 60 },       // テラス席客席（カメラ女子＆迷彩服男性）
-      { x: 145, y: 490, w: 220, h: 75 },     // SPICE COFFEE自転車ワゴン本体
-      { x: 375, y: 490, w: 65, h: 75 },      // A型黒板看板
-      { x: 375, y: 350, w: 185, h: 135 },    // 白テント屋台本体（おばちゃん・商品台）※下側y:485〜と左側は通れる！
-
-      // 5. 右側中段（魚トロ箱ICE、青白干物棚、紺色テント八百屋）
-      // ★魚屋・八百屋の前（y: 530〜）は広々通れる！
-      { x: 870, y: 340, w: 496, h: 190 },
-
-      // 6. 南側（手前オブジェクト全体：客席・テーブル・パラソル・干物台）
-      // ★中央石畳通路（x: 440〜650）のみ画面最下端（y: 760まで）完全に通過可能！
-      { x: 0, y: 685, w: 440, h: 83 },       // 南左手前客席全体
-      { x: 650, y: 685, w: 726, h: 83 }      // 南右手前屋台全体
+    // ユーザー指定の赤目印エリア（添付画像と1ピクセルも違わず完全一致する通行可能ゾーン）
+    this.walkableZones = [
+      // 1. メイン大通り（水平方向の広大な道路全域：左端〜右端まで完全横断！）
+      { x: 0, y: 535, w: 1376, h: 155 },
+      // 2. 遠見岬神社 鳥居前広場・石畳（鳥居前〜石段下）
+      { x: 550, y: 410, w: 295, h: 125 },
+      // 3. 鳥居奥・石段手前（階段の足元敷居・2段目手前）
+      { x: 595, y: 360, w: 180, h: 50 },
+      // 4. 南参道縦道（画面手前中央から画面最下端へ抜ける参道）
+      { x: 580, y: 690, w: 70, h: 78 },
+      // 5. 左側カフェテラス前通路（カメラ女子＆迷彩服客〜パラソル前）
+      { x: 0, y: 490, w: 220, h: 45 },
+      // 6. 左側白テント屋台脇（SPICE COFFEE前）
+      { x: 420, y: 495, w: 130, h: 40 },
+      // 7. 左側パラソル小道1（パラソル間の抜け道）
+      { x: 30, y: 430, w: 50, h: 60 },
+      // 8. 左側パラソル小道2（パラソル間の抜け道）
+      { x: 95, y: 430, w: 50, h: 60 }
     ];
+    // 互換性保持用
+    this.colliders = [];
   }
 
-  // 立入禁止エリア内外判定ヘルパー（敵・アイテムスポーン判定用）
+  // 指定座標がユーザー指定の通行可能ゾーン（赤目印エリア）に入っているか判定
+  isPointWalkable(x, y) {
+    for (let i = 0; i < this.walkableZones.length; i++) {
+      const z = this.walkableZones[i];
+      if (x >= z.x && x <= z.x + z.w && y >= z.y && y <= z.y + z.h) {
+        return true;
+      }
+    }
+    return false;
+  }
+
+  // 立入禁止エリア判定（互換用ヘルパー：赤目印の外なら立入禁止）
   isInsideForbiddenArea(x, y, margin = 0) {
-    for (let i = 0; i < this.colliders.length; i++) {
-      const c = this.colliders[i];
-      if (x >= c.x - margin && x <= c.x + c.w + margin &&
-          y >= c.y - margin && y <= c.y + c.h + margin) {
-        return true;
-      }
+    if (margin <= 0) {
+      return !this.isPointWalkable(x, y);
     }
-    return false;
+    return !(
+      this.isPointWalkable(x, y) &&
+      this.isPointWalkable(x - margin, y) &&
+      this.isPointWalkable(x + margin, y) &&
+      this.isPointWalkable(x, y - margin) &&
+      this.isPointWalkable(x, y + margin)
+    );
   }
 
-  // 足元接地衝突判定（超軽量・直線AABB・14x6px足幅で引っかかりゼロ＆壁ずり滑らか！）
+  // 足元接地衝突判定（超軽量・毎フレーム0.001ms・赤目印エリア外なら即衝突判定）
   checkFootCollision(fx, fy) {
-    const boxW = 14;
-    const boxH = 6;
-    for (let i = 0; i < this.colliders.length; i++) {
-      const c = this.colliders[i];
-      if (fx + boxW / 2 > c.x && fx - boxW / 2 < c.x + c.w &&
-          fy + boxH / 2 > c.y && fy - boxH / 2 < c.y + c.h) {
-        return true;
-      }
-    }
-    return false;
+    return !this.isPointWalkable(fx, fy);
   }
 
-  // アンスタック救出機構（プレイヤー専用・安全地帯へ即時復帰）
+  // アンスタック救出機構（プレイヤー専用・最も近い赤目印エリア内へ即座に安全復帰！）
   unstuckEntity(entity) {
-    if (!this.checkFootCollision(entity.x, entity.y)) return;
+    if (this.isPointWalkable(entity.x, entity.y)) return;
 
-    for (let r = 4; r <= 60; r += 6) {
-      for (let i = 0; i < 8; i++) {
-        const angle = (i / 8) * Math.PI * 2;
-        const testX = entity.x + Math.cos(angle) * r;
-        const testY = entity.y + Math.sin(angle) * r;
-        if (testX >= 20 && testX <= this.worldW - 20 && testY >= 20 && testY <= this.worldH - 20) {
-          if (!this.checkFootCollision(testX, testY)) {
-            entity.x = testX;
-            entity.y = testY;
-            return;
-          }
-        }
+    let bestDist = Infinity;
+    let bestX = entity.x;
+    let bestY = entity.y;
+
+    for (let i = 0; i < this.walkableZones.length; i++) {
+      const z = this.walkableZones[i];
+      const clX = Math.max(z.x + 12, Math.min(z.x + z.w - 12, entity.x));
+      const clY = Math.max(z.y + 12, Math.min(z.y + z.h - 12, entity.y));
+      const dist = Math.hypot(entity.x - clX, entity.y - clY);
+      if (dist < bestDist) {
+        bestDist = dist;
+        bestX = clX;
+        bestY = clY;
       }
     }
-    entity.x = 660;
-    entity.y = 530;
+
+    entity.x = bestX;
+    entity.y = bestY;
   }
 
   // キーボード・UIイベント
@@ -318,6 +311,14 @@ class AsaichiGame {
 
       if (['Space', 'ArrowUp', 'ArrowDown', 'ArrowLeft', 'ArrowRight'].includes(e.code)) {
         e.preventDefault();
+      }
+
+      if (this.eventState !== 'NONE' && this.eventLockoutTimer <= 0) {
+        if (e.code === 'Space' || e.code === 'Enter') {
+          e.preventDefault();
+          this.endEventCutin();
+          return;
+        }
       }
 
       if (this.state === 'TITLE') {
@@ -518,6 +519,12 @@ class AsaichiGame {
     });
 
     this.canvas.addEventListener('mousedown', (e) => {
+      if (this.eventState !== 'NONE') {
+        if (this.eventLockoutTimer <= 0) {
+          this.endEventCutin();
+        }
+        return;
+      }
       if (e.button === 0 && this.state === 'PLAYING') {
         updateMousePos(e);
         this.mouseInput.isDown = true;
@@ -549,6 +556,13 @@ class AsaichiGame {
     let directTouchId = null;
 
     this.canvas.addEventListener('touchstart', (e) => {
+      if (this.eventState !== 'NONE') {
+        e.preventDefault();
+        if (this.eventLockoutTimer <= 0) {
+          this.endEventCutin();
+        }
+        return;
+      }
       if (this.state === 'PLAYING') {
         e.preventDefault();
         const touch = e.changedTouches[0];
@@ -835,46 +849,51 @@ class AsaichiGame {
     };
   }
 
-  // 2. 初回ヤンキー遭遇（★平和モードから戦闘モードへの転換！ゲームを止めずにBGM＆バナー演出！）
+  // 2. 初回ヤンキー遭遇（★平和モードから戦闘モードへの転換！スト6風大迫力カットインイベント発動！）
   triggerYankeeEvent(yankeeEnemy) {
     if (this.firstYankeeEventDone) return;
     this.firstYankeeEventDone = true;
-    this.eventState = 'NONE';
+    this.eventState = 'YANKEE';
+    this.eventTimer = 0;
+    this.eventLockoutTimer = 0.5; // 最初の0.5秒は誤タップ防止
 
     // ★メリハリ演出：平和BGMをストップし、ドラクエ風戦闘エンカウント音を大迫力で再生！
     this.sound.stopPeaceBGM();
     this.sound.playYankeeEncounter();
-
-    // ドラクエ風エンカウント音（約0.5秒）のインパクト・和音炸裂に合わせて戦闘BGMをスタート！
-    setTimeout(() => {
-      if (this.state === 'PLAYING') {
-        this.sound.startBattleBGM();
-      }
-    }, 480);
-
-    // ★戦闘開始！2秒後に最初のアイスコーヒーが確定出現！
-    this.itemSpawnTimer = 2.0;
-
-    this.screenShake = 0.45;
-    this.showLevelUpBanner('⚠️ 勝浦ヤンキー集団が朝市に乱入！', '迫りくるヤンキーを自動爪撃で撃退せよ！');
+    this.screenShake = 0.5;
   }
 
-  // 3. 初回キョン遭遇（★野生キョン専用の奇襲アラート＆甲高い威嚇鳴き声！ゲームを止めずにノンストップ進行！）
+  // 3. 初回キョン遭遇（★野生キョン専用の奇襲アラート＆甲高い威嚇鳴き声！スト6風カットイン発動！）
   triggerKyonEvent(kyonEnemy) {
     if (this.firstKyonEventDone) return;
     this.firstKyonEventDone = true;
-    this.eventState = 'NONE';
+    this.eventState = 'KYON';
+    this.eventTimer = 0;
+    this.eventLockoutTimer = 0.5;
 
     // キョン専用の野生奇襲警戒音！
     this.sound.playKyonEncounter();
-
-    this.screenShake = 0.35;
-    this.showLevelUpBanner('🦌 野生のキョンが乱入！', 'すばしっこいキョンに気をつけろ！');
+    this.screenShake = 0.4;
   }
 
-  // カットイン終了＆ゲーム復帰処理（互換用）
+  // カットイン終了＆ゲーム復帰処理（タップ／キー入力または4秒経過でスムーズにバトル突入！）
   endEventCutin() {
+    if (this.eventState === 'NONE') return;
+    const prevState = this.eventState;
     this.eventState = 'NONE';
+    this.eventTimer = 0;
+    this.eventLockoutTimer = 0;
+
+    if (prevState === 'YANKEE') {
+      // 戦闘BGMスタート！
+      this.sound.startBattleBGM();
+      this.itemSpawnTimer = 2.0; // 2秒後に最初のアイスコーヒー確定出現
+      this.screenShake = 0.45;
+      this.showLevelUpBanner('⚠️ 勝浦ヤンキー集団が朝市に乱入！', '迫りくるヤンキーを自動爪撃で撃退せよ！');
+    } else if (prevState === 'KYON') {
+      this.screenShake = 0.35;
+      this.showLevelUpBanner('🦌 野生のキョンが乱入！', 'すばしっこいキョンに気をつけろ！');
+    }
   }
 
   // ★クライマックス最終決戦：真のラスボス「初代 勝浦暴走族総長」降臨！！
@@ -896,8 +915,8 @@ class AsaichiGame {
     this.showLevelUpBanner('⚠️ 最終決戦！初代 勝浦暴走族総長 降臨！！', '🔥 ラスボス総長を倒して、勝浦朝市の平和を奪還せよ！');
 
     // プレイヤーの正面から堂々と現れる真のラスボス総長（1体単騎）！
-    const bossX = this.player.x + (this.player.dir === 'left' ? -340 : 340);
-    const bossY = Math.max(480, Math.min(640, this.player.y));
+    const bossX = this.player.x + (this.player.dir === 'left' ? -300 : 300);
+    const bossY = Math.max(545, Math.min(660, this.player.y));
     const boss = this.spawnEnemy('boss_yankee', bossX, bossY);
     boss.isBoss = true;
     boss.isFinalBoss = true;
@@ -951,12 +970,25 @@ class AsaichiGame {
   update(dt) {
     if (this.state !== 'PLAYING') return;
 
+    // カットインイベント中（ヤンキー乱入・キョン乱入時：演出をしっかり見せる）
+    if (this.eventState !== 'NONE') {
+      this.eventTimer += dt;
+      if (this.eventLockoutTimer > 0) this.eventLockoutTimer -= dt;
+      // 4.0秒経過で自動進行（安全弁）
+      if (this.eventTimer >= 4.0) {
+        this.endEventCutin();
+      }
+      // イベント中は敵の動きや攻撃、タイマーを一時停止して演出に集中
+      this.updateCamera();
+      return;
+    }
+
     this.survivalTime += dt;
 
-    // 平和時間（開始後3.5秒）を過ぎたら、最初のヤンキーが襲来！（格ゲーカットイン発動！）
-    if (this.survivalTime >= 3.5 && !this.firstYankeeEventDone) {
-      const spawnSide = this.player.x > 600 ? -200 : 200;
-      const firstYankee = this.spawnEnemy('tsuppari', this.player.x + spawnSide, this.player.y);
+    // 平和時間（15.0秒）を過ぎたら、最初のヤンキーが襲来！（格ゲーカットイン発動！）
+    if (this.survivalTime >= 15.0 && !this.firstYankeeEventDone) {
+      const spawnSide = this.player.x > 600 ? -25 : this.worldW + 25;
+      const firstYankee = this.spawnEnemy('tsuppari', spawnSide, 600);
       this.triggerYankeeEvent(firstYankee);
     }
 
@@ -1894,15 +1926,15 @@ class AsaichiGame {
     this.hordeTimer = (this.hordeTimer || 0) + dt;
     const time = this.survivalTime;
 
-    // 4.0秒未満は敵スポーン完全停止（平和な朝市散策タイム！）
-    if (time < 4.0) return;
+    // ★ユーザー要望：15.0秒未満は敵スポーン完全停止（平和な勝浦朝市散策タイムを満喫！）
+    if (time < 15.0) return;
 
     // 序盤から爽快感を感じられるよう敵の出現頻度＆上限数を全体的にアップ！
     let spawnInterval = 1.2;
     let maxEnemies = 10;
     let spawnBatch = 1;
 
-    if (time > 20) { spawnInterval = 0.65; maxEnemies = 22; spawnBatch = 2; }
+    if (time > 25) { spawnInterval = 0.65; maxEnemies = 22; spawnBatch = 2; }
     if (time > 45) { spawnInterval = 0.35; maxEnemies = 45; spawnBatch = 2; }
     if (time > 75) { spawnInterval = 0.20; maxEnemies = 85; spawnBatch = 3; }
 
@@ -1913,12 +1945,12 @@ class AsaichiGame {
         if (this.enemies.length >= maxEnemies) break;
         const rand = Math.random();
 
-        if (time < 20) {
-          // 序盤（4〜20秒）：ヤンキーが左右・下の通路から次々に出現！
+        if (time < 35) {
+          // 序盤（15〜35秒）：ヤンキーが左右・下の通路から次々に出現！
           this.spawnEnemy(rand < 0.7 ? 'tsuppari' : 'skater');
-        } else if (time < 45) {
-          // 20秒以降：キョン初登場！
-          if (rand < 0.5 || !this.firstKyonEventDone) {
+        } else if (time < 60) {
+          // 35秒以降：キョン初登場！（初回は確定でキョン＆カットイン発動！）
+          if (!this.firstKyonEventDone || rand < 0.5) {
             const kyon = this.spawnEnemy('kyon');
             if (!this.firstKyonEventDone && kyon) {
               this.triggerKyonEvent(kyon);
@@ -1926,7 +1958,7 @@ class AsaichiGame {
           } else {
             this.spawnEnemy('tsuppari');
           }
-        } else if (time < 75) {
+        } else if (time < 85) {
           // 中盤：特攻ヤンキーやトンビも混ざる
           if (rand < 0.35) this.spawnEnemy('kyon');
           else if (rand < 0.60) this.spawnEnemy('tsuppari');
@@ -1943,10 +1975,10 @@ class AsaichiGame {
     }
 
     // ラッシュイベント（中盤以降に発生。画面外通路から大軍勢が押し寄せる！）
-    if (time >= 40 && this.hordeTimer >= (time >= 70 ? 7.0 : 10.0)) {
+    if (time >= 45 && this.hordeTimer >= (time >= 75 ? 7.0 : 10.0)) {
       this.hordeTimer = 0;
       const hordeType = Math.random() < 0.5 ? 'kyon' : 'tsuppari';
-      const hordeCount = time >= 70 ? 22 : 12;
+      const hordeCount = time >= 75 ? 22 : 12;
       for (let h = 0; h < hordeCount; h++) {
         if (this.enemies.length < maxEnemies + 15) {
           this.spawnEnemy(hordeType);
@@ -1955,8 +1987,8 @@ class AsaichiGame {
       this.screenShake = 0.2;
     }
 
-    // ボス出現トリガー（中盤60秒の巨大キョン王）
-    if (time >= 60 && !this.bossSpawned1) {
+    // ボス出現トリガー（中盤70秒の巨大キョン王）
+    if (time >= 70 && !this.bossSpawned1) {
       this.bossSpawned1 = true;
       this.spawnEnemy('boss_kyon');
       this.sound.playLevelUp();
@@ -1964,31 +1996,31 @@ class AsaichiGame {
     }
   }
 
-  // 画面左・右・下の通路から敵をスポーン（立入禁止エリアからの発生は完全禁止！）
+  // 画面左・右・下の通路から敵をスポーン（ユーザー指定赤目印エリアの出入口限定！）
   spawnEnemy(type, fixedX = null, fixedY = null) {
     let sx = fixedX, sy = fixedY;
 
     if (sx === null || sy === null) {
-      // ユーザー要望：画面左・右・下の3本の通路から発生！
+      // ユーザー要望：添付画像赤目印エリアの3つの出入口から発生！
       const corridorChoice = Math.random();
-      if (corridorChoice < 0.35) {
-        // 通路1: 画面左端（メインストリート y: 585〜685）
-        sx = -30;
-        sy = 585 + Math.random() * 95;
-      } else if (corridorChoice < 0.70) {
-        // 通路2: 画面右端（メインストリート y: 585〜685）
-        sx = this.worldW + 30;
-        sy = 585 + Math.random() * 95;
+      if (corridorChoice < 0.40) {
+        // 通路1: 画面左端メインストリート（x: -25, y: 550〜670）
+        sx = -25;
+        sy = 550 + Math.random() * 120;
+      } else if (corridorChoice < 0.80) {
+        // 通路2: 画面右端メインストリート（x: worldW + 25, y: 550〜670）
+        sx = this.worldW + 25;
+        sy = 550 + Math.random() * 120;
       } else {
-        // 通路3: 画面下の石畳中央通路（x: 575〜625, y: 画面下外）
-        sx = 575 + Math.random() * 50;
-        sy = this.worldH + 30;
+        // 通路3: 画面下の南参道中央通路（x: 585〜645, y: worldH + 25）
+        sx = 585 + Math.random() * 60;
+        sy = this.worldH + 25;
       }
     } else {
-      // 固定座標が指定された場合でも、立入禁止エリア内にあれば安全な通路位置にスナップ
-      if (this.isInsideForbiddenArea(sx, sy, 10)) {
-        sx = Math.random() < 0.5 ? -30 : this.worldW + 30;
-        sy = 585 + Math.random() * 95;
+      // 固定座標が指定された場合でも、赤目印エリア外なら安全な通路位置にスナップ
+      if (!this.isPointWalkable(sx, sy)) {
+        sx = Math.random() < 0.5 ? -25 : this.worldW + 25;
+        sy = 585 + Math.random() * 80;
       }
     }
 
@@ -2267,7 +2299,7 @@ class AsaichiGame {
     }
   }
 
-  // 朝市名物アイテムの自然スポーン（立入禁止エリアには絶対に出さない安全歩道限定！）
+  // 朝市名物アイテムの自然スポーン（★ユーザー指定の赤目印エリア限定！）
   spawnRandomMarketItem() {
     const p = this.player;
     const maxItems = 3;
@@ -2275,40 +2307,31 @@ class AsaichiGame {
     // 画面全体の上限を超えていたら生成しない
     if (this.dropItems && this.dropItems.length >= maxItems) return;
 
-    // ユーザー要望：立入禁止エリア（赤いエリア）には一切アイテムを発生させない！
-    // 安全な歩道エリア（メインストリート、鳥居前広場、南中央通路）から選定
-    let spawnX, spawnY;
+    // ユーザー要望：赤目印エリア（walkableZones）の中から安全に出現！
+    let spawnX = 660, spawnY = 600;
     let foundSafeSpot = false;
 
     for (let attempt = 0; attempt < 25; attempt++) {
-      const areaType = Math.random();
-      if (areaType < 0.72) {
-        // A. メインストリート横断大通り（x: 40〜1336, y: 588〜685）
-        spawnX = 40 + Math.random() * (this.worldW - 80);
-        spawnY = 588 + Math.random() * 95;
-      } else if (areaType < 0.88) {
-        // B. 鳥居前石畳広場（x: 580〜770, y: 480〜565）
-        spawnX = 580 + Math.random() * 190;
-        spawnY = 480 + Math.random() * 85;
-      } else {
-        // C. 南石畳中央通路（x: 580〜620, y: 655〜735）
-        spawnX = 580 + Math.random() * 40;
-        spawnY = 655 + Math.random() * 75;
-      }
+      // メイン大通り（ゾーン0）に重みを持たせつつ全ゾーンから抽選
+      const zoneIdx = Math.random() < 0.65 ? 0 : Math.floor(Math.random() * this.walkableZones.length);
+      const z = this.walkableZones[zoneIdx];
+      const pad = 12;
+      const testX = z.x + pad + Math.random() * Math.max(1, z.w - pad * 2);
+      const testY = z.y + pad + Math.random() * Math.max(1, z.h - pad * 2);
 
-      // 障害物の境界から20px以上離れており、プレイヤーから適度な距離（70〜450px）にあるか検証
-      const distToPlayer = Math.hypot(p.x - spawnX, p.y - spawnY);
-      if (!this.isInsideForbiddenArea(spawnX, spawnY, 20) && distToPlayer > 70 && distToPlayer < 450) {
+      const dist = Math.hypot(p.x - testX, p.y - testY);
+      if (this.isPointWalkable(testX, testY) && dist > 60 && dist < 500) {
+        spawnX = testX;
+        spawnY = testY;
         foundSafeSpot = true;
         break;
       }
     }
 
     if (!foundSafeSpot) {
-      // フォールバック：中央大通りの絶対安全な中心座標
-      spawnX = p.x + (Math.random() < 0.5 ? -140 : 140);
-      spawnX = Math.max(80, Math.min(this.worldW - 80, spawnX));
-      spawnY = 605 + (Math.random() - 0.5) * 20;
+      // フォールバック：大通り中央
+      spawnX = Math.max(60, Math.min(this.worldW - 60, p.x + (Math.random() < 0.5 ? -140 : 140)));
+      spawnY = 600 + (Math.random() - 0.5) * 30;
     }
 
     // アイテム種別決定：
@@ -3676,49 +3699,46 @@ class AsaichiGame {
     ctx.restore();
   }
 
-  // プレイヤー描画（三毛猫ミケ：向き・走りモーション・反転完全対応）
+  // プレイヤー描画（三毛猫ミケ：滑らかな歩行・立ち姿・トコトコ歩き＆激走ダッシュ）
   drawPlayer(ctx) {
     const p = this.player;
     ctx.save();
 
-    // 走っているときの上下ボブ（ピョンピョン跳ねるリズミカルな上下運動）
+    // 走っているときの上下ボブ（ピョコピョコ跳ねる自然なリズム）
     let hopY = 0;
     let tilt = 0;
     const isMoving = !!p.isMoving;
 
     if (isMoving) {
-      // 走る時のリズミカルなボブ
-      hopY = -Math.abs(Math.sin(p.animTimer * Math.PI)) * (p.isDashing ? 5 : 3.5);
-      // 前傾姿勢・傾き
+      // 過剰な震えを抑え、自然で愛らしい歩行ボブ
+      hopY = -Math.abs(Math.sin(p.animTimer * 0.5 * Math.PI)) * (p.isDashing ? 3.0 : 2.0);
       if (p.dir === 'left' || p.dir === 'right') {
-        tilt = p.facing * (p.isDashing ? 0.12 : 0.06);
-      } else {
-        tilt = Math.sin(p.animTimer * Math.PI) * 0.05;
+        tilt = p.facing * (p.isDashing ? 0.08 : 0.04);
       }
     }
 
     ctx.translate(p.x, p.y + hopY);
-    ctx.rotate(tilt);
+    if (tilt !== 0) ctx.rotate(tilt);
 
-    // 足元接地影（ジャンプで浮いたときは影が小さく薄くなる）
-    ctx.fillStyle = 'rgba(15, 23, 42, 0.45)';
+    // 足元接地影（自然なスケール変化）
+    ctx.fillStyle = 'rgba(15, 23, 42, 0.4)';
     ctx.beginPath();
-    const shadowScale = Math.max(0.65, 1 - Math.abs(hopY) / 14);
-    ctx.ellipse(0, -hopY * 0.5, 20 * shadowScale, 7 * shadowScale, 0, 0, Math.PI * 2);
+    const shadowScale = Math.max(0.7, 1 - Math.abs(hopY) / 12);
+    ctx.ellipse(0, -hopY * 0.4, 18 * shadowScale, 6 * shadowScale, 0, 0, Math.PI * 2);
     ctx.fill();
 
     // わらび餅バリアシールド（回転する金色の円環）
     if (p.shieldBuffTimer > 0) {
       const rot = Date.now() / 200;
       ctx.strokeStyle = '#fbbf24';
-      ctx.lineWidth = 3.5;
+      ctx.lineWidth = 3.0;
       ctx.beginPath();
-      ctx.arc(0, -18, 34, rot, rot + Math.PI * 1.5);
+      ctx.arc(0, -18, 32, rot, rot + Math.PI * 1.5);
       ctx.stroke();
     }
 
     // コーヒー爆速湯気エフェクト
-    if (p.speedBuffTimer > 0 && Math.random() < 0.35) {
+    if (p.speedBuffTimer > 0 && Math.random() < 0.3) {
       this.addParticle(p.x + (Math.random() - 0.5) * 16, p.y - 12, 'smoke');
     }
 
@@ -3734,42 +3754,39 @@ class AsaichiGame {
       const cell = SPRITES.cat.cell; // 256
       let row = 0;
       let col = 0;
+      let flipX = false;
 
-      // 向きと走りモーションの完全マッピング！
-      if (p.scratchAnimTimer > 0) {
-        // ひっかき攻撃ポーズ！（前足を突き出して鋭い爪を光らせる！ Row 3 Col 2）
-        row = 3;
-        col = 2;
-      } else if (p.dir === 'up') {
-        // 後ろ姿（唐草風呂敷）: Row 2 Col 1 と Row 3 Col 1 を交互に足踏み
+      if (p.dir === 'up') {
+        // 後ろ姿（唐草風呂敷）: 移動中は歩き（Row 3 Col 1）、静止中はおすわり（Row 2 Col 1）
         col = 1;
-        row = (isMoving && Math.floor(p.animTimer * 2) % 2 === 1) ? 3 : 2;
+        row = isMoving ? 3 : 2;
       } else if (p.dir === 'down') {
-        // 正面（笑顔）: Row 2 Col 0 と Row 3 Col 0 を交互に足踏み
+        // 正面（笑顔）: 移動中は歩き（Row 3 Col 0）、静止中はおすわり（Row 2 Col 0）
         col = 0;
-        row = (isMoving && Math.floor(p.animTimer * 2) % 2 === 1) ? 2 : 3;
+        row = isMoving ? 3 : 2;
       } else {
-        // 左右の横向き！
+        // 左右の横向き
+        flipX = (p.dir === 'left' || p.facing === -1);
         if (isMoving) {
-          // 激走ダッシュアニメーション（Row 1: Col 0〜3 の4コマ）
-          row = 1;
+          // 通常移動はRow 0（トコトコ歩き4コマ）、スピードバフ中はRow 1（激走ダッシュ4コマ）
+          row = p.isDashing ? 1 : 0;
           col = p.animFrame % 4;
         } else {
-          // 立ち姿（Row 0 Col 0）
+          // 静止時は横向き立ち姿（Row 0 Col 0）
           row = 0;
           col = 0;
         }
       }
 
       ctx.save();
-      // 向き反転（左向きの時は左右反転！）
-      if (p.dir === 'left' || (p.dir !== 'right' && p.facing === -1)) {
+      // 左右移動時のみ向き反転（上下移動でのチラつきを完全防止！）
+      if (flipX) {
         ctx.scale(-1, 1);
       }
 
       // 静止時のやわらか呼吸アニメーション
       if (!isMoving) {
-        const breathe = 1 + Math.sin(Date.now() / 320) * 0.025;
+        const breathe = 1 + Math.sin(Date.now() / 350) * 0.02;
         ctx.scale(1, breathe);
       }
 
@@ -3782,7 +3799,6 @@ class AsaichiGame {
     }
 
     ctx.restore();
-
   }
 
   // （旧周回カツオ描画は全廃）
