@@ -324,19 +324,6 @@ class AsaichiGame {
           e.preventDefault();
           this.startGame();
         }
-      } else if (this.state === 'PLAYING') {
-        if (this.eventState !== 'NONE') {
-          // イベント中：ロックアウト解除後、SpaceまたはEnterでスキップ
-          if (this.eventLockoutTimer <= 0 && (e.code === 'Space' || e.code === 'Enter')) {
-            e.preventDefault();
-            this.endEventCutin();
-          }
-          return;
-        }
-      } else if (this.state === 'LEVELUP') {
-        if (e.key === '1') this.chooseSkillByIndex(0);
-        if (e.key === '2') this.chooseSkillByIndex(1);
-        if (e.key === '3') this.chooseSkillByIndex(2);
       } else if (this.state === 'RESULT') {
         if (e.code === 'Space' || e.code === 'Enter') {
           e.preventDefault();
@@ -484,16 +471,6 @@ class AsaichiGame {
       soundBtn.textContent = on ? '🔊 BGM ON' : '🔇 BGM OFF';
     });
 
-    // キャンバスクリック/タップでイベントスキップ
-    const trySkipEvent = (e) => {
-      if (this.state === 'PLAYING' && this.eventState !== 'NONE') {
-        if (this.eventLockoutTimer <= 0) {
-          this.endEventCutin();
-        }
-      }
-    };
-    this.canvas.addEventListener('click', trySkipEvent);
-    this.canvas.addEventListener('touchstart', trySkipEvent);
 
     // ========================================================
     // PC用：マウス操作（カーソル追従 / ドラッグ移動）
@@ -800,17 +777,16 @@ class AsaichiGame {
     this.updateUI();
   }
 
-  // 1. 開幕イベント（ゲーム開始時：平和モードのミケの可愛いセリフ演出カットイン！）
+  // 1. 開幕イベント（ゲーム開始時：ゲームを止めずに上部バナーで歓迎演出！）
   triggerPeaceEvent() {
     this.firstPeaceEventDone = true;
-    this.eventState = 'PEACE';
-    this.eventCutinTimer = 2.4;
-    this.eventLockoutTimer = 0.2;
+    this.eventState = 'NONE';
     this.sound.playMeowRoar();
     // 平和モードBGMが流れていなければ確実にスタート
     if (this.sound.currentBgmType !== 'PEACE') {
       this.sound.startPeaceBGM();
     }
+    this.showLevelUpBanner('🌸 平和な勝浦朝市へようこそ！', '移動して朝市をお散歩するニャ！');
   }
 
   // 告知バナーヘルパー（ゲームを止めずに画面上部に通知）
@@ -823,36 +799,35 @@ class AsaichiGame {
     };
   }
 
-  // 2. 初回ヤンキー遭遇（★平和モードから戦闘モードへの転換！ドラクエ風エンカウント音＋戦闘BGM突入！）
+  // 2. 初回ヤンキー遭遇（★平和モードから戦闘モードへの転換！ゲームを止めずにBGM＆バナー演出！）
   triggerYankeeEvent(yankeeEnemy) {
     if (this.firstYankeeEventDone) return;
     this.firstYankeeEventDone = true;
-    this.eventState = 'YANKEE';
-    this.eventCutinTimer = 2.5;
-    this.eventLockoutTimer = 0.2;
+    this.eventState = 'NONE';
 
     // ★メリハリ演出：平和BGMをストップし、ドラクエ風戦闘エンカウント音を大迫力で再生！
     this.sound.stopPeaceBGM();
     this.sound.playYankeeEncounter();
 
-    // ドラクエ風エンカウント音（約0.5秒）のインパクト・和音炸裂に合わせてユーザー提供の神曲戦闘MP3をスタート！
+    // ドラクエ風エンカウント音（約0.5秒）のインパクト・和音炸裂に合わせて戦闘BGMをスタート！
     setTimeout(() => {
       if (this.state === 'PLAYING') {
         this.sound.startBattleBGM();
       }
     }, 480);
 
+    // ★戦闘開始！2秒後に最初のアイスコーヒーが確定出現！
+    this.itemSpawnTimer = 2.0;
+
     this.screenShake = 0.45;
     this.showLevelUpBanner('⚠️ 勝浦ヤンキー集団が朝市に乱入！', '迫りくるヤンキーを自動爪撃で撃退せよ！');
   }
 
-  // 3. 初回キョン遭遇（★野生キョン専用の奇襲アラート＆甲高い威嚇鳴き声！ヤンキーのドラクエ音とは明確に差別化！）
+  // 3. 初回キョン遭遇（★野生キョン専用の奇襲アラート＆甲高い威嚇鳴き声！ゲームを止めずにノンストップ進行！）
   triggerKyonEvent(kyonEnemy) {
     if (this.firstKyonEventDone) return;
     this.firstKyonEventDone = true;
-    this.eventState = 'KYON';
-    this.eventCutinTimer = 2.2;
-    this.eventLockoutTimer = 0.2;
+    this.eventState = 'NONE';
 
     // キョン専用の野生奇襲警戒音！
     this.sound.playKyonEncounter();
@@ -861,16 +836,8 @@ class AsaichiGame {
     this.showLevelUpBanner('🦌 野生のキョンが乱入！', 'すばしっこいキョンに気をつけろ！');
   }
 
-  // カットイン終了＆ゲーム復帰処理（戦闘BGMの確実なスタート＆戦闘後アイテムタイマー起動）
+  // カットイン終了＆ゲーム復帰処理（互換用）
   endEventCutin() {
-    if (this.eventState === 'YANKEE') {
-      // ヤンキー登場演出終了時：戦闘BGMが未再生なら確実に再生開始
-      if (this.sound.currentBgmType !== 'BATTLE') {
-        this.sound.startBattleBGM();
-      }
-      // ★戦闘開始！2秒後に最初のアイスコーヒーが確定出現！
-      this.itemSpawnTimer = 2.0;
-    }
     this.eventState = 'NONE';
   }
 
@@ -947,15 +914,6 @@ class AsaichiGame {
   // ========================================================
   update(dt) {
     if (this.state !== 'PLAYING') return;
-
-    // イベントカットイン表示中：プレイヤーの操作（ボタン押下・タップ・SPACE）があるまで完全待機！
-    if (this.eventState !== 'NONE') {
-      if (this.eventLockoutTimer > 0) this.eventLockoutTimer -= dt;
-      // ※自動進行は廃止！プレイヤーがボタンを押すまでしっかり待機
-      this.updateCamera();
-      this.updateUI();
-      return;
-    }
 
     this.survivalTime += dt;
 
@@ -3121,18 +3079,6 @@ class AsaichiGame {
 
       ctx.drawImage(fgImg, 0, 0, this.worldW, this.worldH);
       ctx.restore();
-
-      // ミケが手前オブジェクトの裏側にいるときは、頭上に「🐾」ガイドを小さく表示して位置を完全把握
-      if (isPlayerBehind && this.player) {
-        ctx.save();
-        ctx.textAlign = 'center';
-        ctx.font = 'bold 13px sans-serif';
-        ctx.fillStyle = '#fef08a';
-        ctx.shadowColor = 'rgba(0,0,0,0.85)';
-        ctx.shadowBlur = 4;
-        ctx.fillText('🐾', this.player.x, this.player.y - 20);
-        ctx.restore();
-      }
     }
   }
 
