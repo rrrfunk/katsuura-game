@@ -3110,8 +3110,29 @@ class AsaichiGame {
       : (this.images.mapForeground && this.images.mapForeground.complete && this.images.mapForeground.naturalWidth > 0 ? this.images.mapForeground : this.images.mapForegroundPeace);
 
     if (fgImg && fgImg.complete && fgImg.naturalWidth > 0) {
+      ctx.save();
       ctx.imageSmoothingEnabled = false;
+
+      // 透過処理：プレイヤー（ミケ）が手前オブジェクト周辺（y >= 580）にいる時は
+      // ミケが半分埋もれたり隠れて見失わないよう、しっかり半透明（0.55）に透過して透けて見えるようにする！
+      // 通常時も軽やかな半透明（0.82）で重ねることで、重苦しい遮蔽感をなくす
+      const isPlayerBehind = (this.player && this.player.y >= 580);
+      ctx.globalAlpha = isPlayerBehind ? 0.55 : 0.82;
+
       ctx.drawImage(fgImg, 0, 0, this.worldW, this.worldH);
+      ctx.restore();
+
+      // ミケが手前オブジェクトの裏側にいるときは、頭上に「🐾」ガイドを小さく表示して位置を完全把握
+      if (isPlayerBehind && this.player) {
+        ctx.save();
+        ctx.textAlign = 'center';
+        ctx.font = 'bold 13px sans-serif';
+        ctx.fillStyle = '#fef08a';
+        ctx.shadowColor = 'rgba(0,0,0,0.85)';
+        ctx.shadowBlur = 4;
+        ctx.fillText('🐾', this.player.x, this.player.y - 20);
+        ctx.restore();
+      }
     }
   }
 
