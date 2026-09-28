@@ -18,13 +18,13 @@ class SoundSystem {
     this.peaceBgmTimer = null;
     this.peaceBgmPlaying = false;
 
-    // ユーザー提供の本格戦闘BGM（assets/bgm.mp3）
-    this.bgmAudio = new Audio('assets/bgm.mp3');
+    // ユーザー提供の本格戦闘BGM（高品質・軽量AAC最適化版：assets/bgm.m4a）
+    this.bgmAudio = new Audio('assets/bgm.m4a');
     this.bgmAudio.loop = true;
     this.bgmAudio.volume = 0.32; // 主軸BGMとしてしっかり心地よく聴こえる音量に統一！
 
-    // ★ユーザー提供のクリア・エンディング神曲BGM（assets/bgm_clear.mp3）
-    this.clearBgmAudio = new Audio('assets/bgm_clear.mp3');
+    // ★ユーザー提供のクリア・エンディング神曲BGM（高品質・軽量AAC最適化版：assets/bgm_clear.m4a）
+    this.clearBgmAudio = new Audio('assets/bgm_clear.m4a');
     this.clearBgmAudio.loop = true;
     this.clearBgmAudio.volume = 0.35; // 温かくクリアの達成感を包み込む音量！
 
@@ -51,6 +51,13 @@ class SoundSystem {
       victoryFanfare: null
     };
     this.mikoshiActiveSource = null;
+
+    // ★高負荷・終盤カクつき完全防止：連続効果音スロットリング（秒間20回上限に抑制）
+    this.lastPlayTime = {
+      hit: 0,
+      slash: 0,
+      enemyDefeat: 0
+    };
   }
 
   init() {
@@ -135,6 +142,10 @@ class SoundSystem {
   // 1. 爪撃音（鋭い風切り＆肉球爪スラッシュ「シュバッ！」）
   playSlash() {
     if (!this.soundEnabled || !this.ctx || !this.noiseBuffer) return;
+    const nowTime = performance.now();
+    if (nowTime - this.lastPlayTime.slash < 45) return; // 45ms以内の連打は間引く
+    this.lastPlayTime.slash = nowTime;
+
     try {
       const now = this.ctx.currentTime;
       const dur = 0.08;
@@ -166,6 +177,10 @@ class SoundSystem {
   // 2. 打撃ヒット音（重厚なキック＋インパクト「ドスッ！」「バシッ！」）
   playHit() {
     if (!this.soundEnabled || !this.ctx) return;
+    const nowTime = performance.now();
+    if (nowTime - this.lastPlayTime.hit < 38) return; // 38ms以内の連打は間引く（毎秒最大約26発）
+    this.lastPlayTime.hit = nowTime;
+
     try {
       const now = this.ctx.currentTime;
       const dur = 0.12;
@@ -209,6 +224,10 @@ class SoundSystem {
   // 3. 敵撃破・吹っ飛び音（豪快な爆散「ドガァン！」）
   playEnemyDefeat() {
     if (!this.soundEnabled || !this.ctx || !this.noiseBuffer) return;
+    const nowTime = performance.now();
+    if (nowTime - this.lastPlayTime.enemyDefeat < 50) return; // 50ms以内の連打は間引く
+    this.lastPlayTime.enemyDefeat = nowTime;
+
     try {
       const now = this.ctx.currentTime;
       const dur = 0.22;

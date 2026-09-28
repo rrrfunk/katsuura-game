@@ -1583,15 +1583,11 @@ class AsaichiGame {
     });
   }
 
-  // 子猫のミニ爪撃（ミケのツメをさらに小さくした極小鋭利な爪痕！）
+  // 子猫のミニ爪撃（ミケのツメをさらに小さくした極小鋭利な爪痕！O(N)超軽量索敵）
   fireKittenScratch(kit) {
     if (this.enemies.length === 0) return;
-    const sorted = [...this.enemies].sort((a, b) => {
-      return Math.hypot(a.x - kit.x, a.y - kit.y) - Math.hypot(b.x - kit.x, b.y - kit.y);
-    });
-    const target = sorted[0];
-    const dist = Math.hypot(target.x - kit.x, target.y - kit.y);
-    if (dist > 140) return; // 至近距離の敵へ牽制
+    const target = this.getClosestEnemy(kit.x, kit.y, 140);
+    if (!target) return; // 至近距離の敵へ牽制
 
     const lv = this.skills.scratch.level;
     const dmg = (20 + lv * 7) * (1 + this.skills.spice.level * 0.35);
@@ -1972,10 +1968,12 @@ class AsaichiGame {
           pr.y += pr.vy * dt;
         }
 
-        // 敵との多段ヒット判定（貫通しつつ同一敵には0.20秒ごとにヒット！）
+        // 敵との多段ヒット判定（二乗距離比較で平方根計算を排除！0.20秒ごとにヒット）
         for (let e of this.enemies) {
-          const eDist = Math.hypot(e.x - pr.x, e.y - pr.y);
-          if (eDist < (e.w / 2 + 18)) {
+          const dx = e.x - pr.x;
+          const dy = e.y - pr.y;
+          const hitR = e.w / 2 + 18;
+          if (dx * dx + dy * dy < hitR * hitR) {
             const lastHit = pr.hitCooldowns ? pr.hitCooldowns.get(e) || 0 : 0;
             if (pr.age - lastHit >= 0.20) {
               if (pr.hitCooldowns) pr.hitCooldowns.set(e, pr.age);
@@ -2003,13 +2001,13 @@ class AsaichiGame {
         pr.rotation = (pr.rotation || 0) + pr.rotSpeed * dt;
       }
 
-      // 敵との衝突判定
-      // 敵との衝突判定（親ミケは範囲狭めの11px、子ミケは極小の8px）
+      // 敵との衝突判定（二乗距離比較で超高速化！親ミケは範囲狭めの11px、子ミケは極小の8px）
       for (let e of this.enemies) {
         if (pr.hitEnemies && pr.hitEnemies.includes(e)) continue;
-        const dist = Math.hypot(e.x - pr.x, e.y - pr.y);
+        const dx = e.x - pr.x;
+        const dy = e.y - pr.y;
         const hitRadius = pr.isKitten ? (e.w / 2 + 8) : (e.w / 2 + 11);
-        if (dist < hitRadius) {
+        if (dx * dx + dy * dy < hitRadius * hitRadius) {
           if (pr.hitEnemies) pr.hitEnemies.push(e);
           this.damageEnemy(e, pr.damage, pr.x, pr.y);
           this.sound.playHit();
@@ -2274,16 +2272,17 @@ class AsaichiGame {
         this.moveEnemy(e, vx, vy);
       }
 
-      // 敵同士の重なり回避（分離：ゾーン内にいる時のみ）
-      if (this.isPointWalkable(e.x, e.y)) {
-        for (let j = 0; j < Math.min(this.enemies.length, 10); j++) {
-          const other = this.enemies[j];
-          if (other !== e && this.isPointWalkable(other.x, other.y)) {
-            const sepD = Math.hypot(e.x - other.x, e.y - other.y);
-            if (sepD < 22 && sepD > 0.1) {
-              e.x += ((e.x - other.x) / sepD) * 0.6;
-              e.y += ((e.y - other.y) / sepD) * 0.6;
-            }
+      // 敵同士の重なり回避（分離：二乗距離で超高速計算＆余計なループ判定を排除！）
+      for (let j = 0; j < Math.min(this.enemies.length, 8); j++) {
+        const other = this.enemies[j];
+        if (other !== e) {
+          const sepDx = e.x - other.x;
+          const sepDy = e.y - other.y;
+          const sepDistSq = sepDx * sepDx + sepDy * sepDy;
+          if (sepDistSq < 484 && sepDistSq > 0.01) { // 22px * 22px = 484
+            const sepD = Math.sqrt(sepDistSq);
+            e.x += (sepDx / sepD) * 0.6;
+            e.y += (sepDy / sepD) * 0.6;
           }
         }
       }
@@ -4490,13 +4489,19 @@ class AsaichiGame {
     // 4. 被弾ヒットインパクトの閃光（Hit Spark & Slash Impact）
     if (isHitFlashing) {
       ctx.save();
-      ctx.strokeStyle = '#ffffff';
-      ctx.lineWidth = 3;
-      ctx.shadowColor = '#fde047';
-      ctx.shadowBlur = 12;
-
-      // 十字閃光
       const sparkR = e.isBoss ? 26 : 16;
+
+      // 外側イエローオーラ発光（shadowBlurを使わず太い半透明ストロークで超高速描画！）
+      ctx.strokeStyle = 'rgba(253, 224, 71, 0.75)';
+      ctx.lineWidth = 5;
+      ctx.beginPath();
+      ctx.moveTo(-sparkR, -22); ctx.lineTo(sparkR, -22);
+      ctx.moveTo(0, -22 - sparkR); ctx.lineTo(0, -22 + sparkR);
+      ctx.stroke();
+
+      // 中心白熱コア
+      ctx.strokeStyle = '#ffffff';
+      ctx.lineWidth = 2.2;
       ctx.beginPath();
       ctx.moveTo(-sparkR, -22); ctx.lineTo(sparkR, -22);
       ctx.moveTo(0, -22 - sparkR); ctx.lineTo(0, -22 + sparkR);
@@ -4567,16 +4572,13 @@ class AsaichiGame {
         const mainColor = isKitten ? '#38bdf8' : isAlly ? '#c084fc' : '#00f0ff';
         const subColor = isKitten ? '#7dd3fc' : isAlly ? '#a855f7' : '#0284c7';
 
-        ctx.shadowColor = mainColor;
-        ctx.shadowBlur = isKitten ? 4 : 6;
-
         // シャープで洗練された猫爪痕（親ミケは0.72で範囲狭くスマート、子ミケは0.38でさらに小さく可愛い！）
         const scale = isKitten ? 0.38 : (isAlly ? 0.65 : 0.72);
         const bladeOffsets = [-4.5 * scale, 0, 4.5 * scale];
         bladeOffsets.forEach((offY, idx) => {
           const arcLen = (idx === 1 ? 14 : 11) * scale;
 
-          // 外側オーラブレード
+          // 外側オーラブレード（shadowBlurを使わず太いストロークで高速描画！）
           ctx.strokeStyle = mainColor;
           ctx.lineWidth = 2.4 * scale;
           ctx.beginPath();
@@ -4603,8 +4605,6 @@ class AsaichiGame {
       } else if (pr.type === 'bonito_throw') {
         // 回転する勝浦特産生カツオ投擲弾！
         ctx.rotate(pr.rotation || 0);
-        ctx.shadowColor = '#38bdf8';
-        ctx.shadowBlur = 10;
 
         // カツオ魚体（紡錘形ボディ）
         ctx.fillStyle = '#0284c7';
@@ -4647,10 +4647,7 @@ class AsaichiGame {
         ctx.beginPath(); ctx.arc(0, 0, 15, 0, Math.PI * 2); ctx.stroke();
 
       } else if (pr.type === 'fire') {
-        // 七輪の紅蓮大火球
-        ctx.shadowColor = '#f97316';
-        ctx.shadowBlur = 10;
-
+        // 七輪の紅蓮大火球（3層レイヤーで鮮やかに発光）
         // 外炎
         ctx.fillStyle = '#ef4444';
         ctx.beginPath();
@@ -4678,8 +4675,6 @@ class AsaichiGame {
       const alpha = Math.max(0, mw.life / mw.maxLife);
 
       // 最外層：ネオンシアン衝撃波
-      ctx.shadowColor = '#38bdf8';
-      ctx.shadowBlur = 14;
       ctx.strokeStyle = `rgba(56, 189, 248, ${alpha})`;
       ctx.lineWidth = 6;
       ctx.beginPath();
@@ -4706,14 +4701,15 @@ class AsaichiGame {
 
   // パーティクル＆ダメージ数字
   renderEffects(ctx) {
-    // ダメージ数字
+    // ダメージ数字（shadowBlurを使わず太い黒フチで超高速・クッキリ表示！）
     this.damageNumbers.forEach(d => {
       ctx.save();
       ctx.font = 'bold 13px sans-serif';
-      ctx.fillStyle = d.color;
-      ctx.shadowColor = '#000000';
-      ctx.shadowBlur = 3;
       ctx.textAlign = 'center';
+      ctx.strokeStyle = '#000000';
+      ctx.lineWidth = 2.5;
+      ctx.strokeText(d.text, d.x, d.y);
+      ctx.fillStyle = d.color;
       ctx.fillText(d.text, d.x, d.y);
       ctx.restore();
     });
