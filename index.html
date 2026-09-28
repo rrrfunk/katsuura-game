@@ -10,7 +10,7 @@
   <title>ニャンと多忙な勝浦朝市！〜おつかい猫のヤンキー大乱闘〜 【SFC超美麗版】</title>
   <link rel="manifest" href="manifest.json">
   <link rel="apple-touch-icon" href="assets/cutin_cat.jpg">
-  <link rel="stylesheet" href="style.css?v=20260928_fullscreen_landscape_pwa">
+  <link rel="stylesheet" href="style.css?v=20260929_fullscreen_fix">
 </head>
 <body>
   <div id="game-container">
@@ -193,9 +193,20 @@
     <div class="rotate-desc">スマホを横持ちに回転すると大迫力の全画面で快適に遊べるニャ！</div>
   </div>
 
+  <!-- iOS Safari 向け：ツールバー折りたたみ＆ホーム画面追加案内トースト -->
+  <div id="safari-fullscreen-toast" class="hidden">
+    <span class="toast-icon">💡</span>
+    <span class="toast-text">
+      <strong>さらに全画面で遊ぶコツ：</strong><br>
+      下の「ぁあ」タップ ➜「ツールバーを非表示」でタブが消滅！<br>
+      （または共有 ➜「ホーム画面に追加」で完全全画面アプリ化ニャ！）
+    </span>
+    <button id="btn-close-safari-toast" class="toast-close-btn">✕ 了解</button>
+  </div>
+
   <!-- 分割スクリプト群（サウンド、定数、ゲーム本体） -->
-  <script src="js/sound.js?v=20260929_fix_freeze_and_lag"></script>
-  <script src="js/constants.js?v=20260929_fix_freeze_and_lag"></script>
-  <script src="js/game.js?v=20260929_fix_freeze_and_lag"></script>
+  <script src="js/sound.js?v=20260929_fullscreen_fix"></script>
+  <script src="js/constants.js?v=20260929_fullscreen_fix"></script>
+  <script src="js/game.js?v=20260929_fullscreen_fix"></script>
 </body>
 </html>

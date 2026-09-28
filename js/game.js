@@ -345,10 +345,30 @@ class AsaichiGame {
     // ========================================================
     // 全画面表示（フルスクリーン）制御（iOS Safari & Android両対応）
     // ========================================================
+    const isIOS = /iPad|iPhone|iPod/.test(navigator.userAgent) || 
+      (navigator.platform === 'MacIntel' && navigator.maxTouchPoints > 1);
+
+    const showSafariToast = () => {
+      if (!isIOS) return;
+      const toast = document.getElementById('safari-fullscreen-toast');
+      if (!toast) return;
+      toast.classList.remove('hidden');
+      if (this.safariToastTimer) clearTimeout(this.safariToastTimer);
+      this.safariToastTimer = setTimeout(() => {
+        toast.classList.add('hidden');
+      }, 5000);
+    };
+
+    document.getElementById('btn-close-safari-toast')?.addEventListener('click', (e) => {
+      e.stopPropagation();
+      const toast = document.getElementById('safari-fullscreen-toast');
+      if (toast) toast.classList.add('hidden');
+    });
+
     const isFullscreenActive = () => {
       const doc = document;
       const apiFs = !!(doc.fullscreenElement || doc.webkitFullscreenElement || doc.mozFullScreenElement || doc.msFullscreenElement);
-      const pseudoFs = document.body.classList.contains('pseudo-fullscreen');
+      const pseudoFs = !!document.body?.classList?.contains('pseudo-fullscreen');
       return apiFs || pseudoFs;
     };
 
@@ -366,45 +386,41 @@ class AsaichiGame {
       const doc = document;
 
       if (!isFs) {
-        // 全画面起動を試みる
-        const el = document.documentElement;
-        const req = el.requestFullscreen || el.webkitRequestFullscreen || el.mozRequestFullScreen || el.msRequestFullscreen;
+        // 1. 擬似フルスクリーンクラスを即座に付与（CSSで fixed 100vw x 100dvh に完全フィット！）
+        document.body?.classList?.add('pseudo-fullscreen');
+
+        // 2. Android Chrome / PC 向けのネイティブ Fullscreen API
+        const el = document.getElementById('game-container') || document.documentElement;
+        const req = el?.requestFullscreen || el?.webkitRequestFullscreen || el?.mozRequestFullScreen || el?.msRequestFullscreen;
         if (req) {
           try {
             const p = req.call(el);
             if (p && p.then) {
               p.then(() => {
-                updateFsButtons();
                 if (window.screen && window.screen.orientation && window.screen.orientation.lock) {
                   window.screen.orientation.lock('landscape').catch(() => {});
                 }
-              }).catch(() => {
-                // iOS Safari等でAPI拒否 ➜ 擬似全画面クラスで画面全体をカバー
-                document.body.classList.add('pseudo-fullscreen');
-                updateFsButtons();
-              });
-            } else {
-              document.body.classList.add('pseudo-fullscreen');
-              updateFsButtons();
+              }).catch(() => {});
             }
-          } catch (err) {
-            document.body.classList.add('pseudo-fullscreen');
-            updateFsButtons();
-          }
-        } else {
-          document.body.classList.add('pseudo-fullscreen');
-          updateFsButtons();
+          } catch (err) {}
         }
 
-        // スマホのアドレスバー畳み
+        // 3. iOS Safari の場合、案内トーストを表示
+        if (isIOS) {
+          showSafariToast();
+        }
+
+        // 4. アドレスバー畳み（モバイルスクロールトリガー）
         try {
           window.scrollTo(0, 0);
           setTimeout(() => window.scrollTo(0, 1), 100);
           setTimeout(() => window.scrollTo(0, 0), 250);
         } catch (e) {}
+
+        updateFsButtons();
       } else {
         // 全画面解除
-        document.body.classList.remove('pseudo-fullscreen');
+        document.body?.classList?.remove('pseudo-fullscreen');
         const exit = doc.exitFullscreen || doc.webkitExitFullscreen || doc.mozCancelFullScreen || doc.msExitFullscreen;
         if (exit) {
           try {
@@ -424,8 +440,10 @@ class AsaichiGame {
     document.addEventListener('MSFullscreenChange', updateFsButtons);
 
     const tryAutoFullscreen = () => {
-      const el = document.documentElement;
-      const req = el.requestFullscreen || el.webkitRequestFullscreen || el.mozRequestFullScreen || el.msRequestFullscreen;
+      // 画面全体フィット
+      document.body?.classList?.add('pseudo-fullscreen');
+      const el = document.getElementById('game-container') || document.documentElement;
+      const req = el?.requestFullscreen || el?.webkitRequestFullscreen || el?.mozRequestFullScreen || el?.msRequestFullscreen;
       if (req) {
         try {
           const p = req.call(el);
@@ -435,12 +453,31 @@ class AsaichiGame {
       if (window.screen && window.screen.orientation && window.screen.orientation.lock) {
         window.screen.orientation.lock('landscape').catch(() => {});
       }
+      if (isIOS && window.innerWidth > window.innerHeight) {
+        showSafariToast();
+      }
       try {
         window.scrollTo(0, 0);
         setTimeout(() => window.scrollTo(0, 1), 100);
         setTimeout(() => window.scrollTo(0, 0), 250);
       } catch (e) {}
+      updateFsButtons();
     };
+
+    // 画面回転監視（スマホを横持ちにしたら自動でフルスクリーンモード適用）
+    const handleOrientation = () => {
+      const isLandscape = window.innerWidth > window.innerHeight;
+      if (isLandscape && window.innerWidth <= 960) {
+        document.body?.classList?.add('pseudo-fullscreen');
+        updateFsButtons();
+        try {
+          window.scrollTo(0, 1);
+        } catch(e) {}
+      }
+    };
+    window.addEventListener('resize', handleOrientation);
+    window.addEventListener('orientationchange', handleOrientation);
+    handleOrientation(); // 初回実行
 
     // UIボタン＆タイトル画面タップ
     const fsBtn = document.getElementById('fullscreen-btn');
