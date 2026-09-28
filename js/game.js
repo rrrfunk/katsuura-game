@@ -3372,21 +3372,21 @@ class AsaichiGame {
     else if (cutin.type === 'mikoshi') targetCutinImg = this.images.cutinMikoshi;
     else if (cutin.type === 'noraneko') targetCutinImg = this.images.cutinNoraneko;
 
+    const hasCustomImg = targetCutinImg && targetCutinImg.complete && targetCutinImg.naturalWidth > 0;
     const charZoom = 1.0 + p * 0.08;
-    const charX = slitW * 0.10;
-    const charY = 0;
 
-    if (targetCutinImg && targetCutinImg.complete && targetCutinImg.naturalWidth > 0) {
-      // ユーザーが生成した専用カットイン立ち絵がある場合
-      const imgW = slitHeight * 1.6 * charZoom;
-      const imgH = slitHeight * 1.05 * charZoom;
+    if (hasCustomImg) {
+      // ユーザーが生成した専用カットイン（文字・セリフ入り）がある場合、スリット帯いっぱいに超ド迫力表示！
+      const imgH = slitHeight * 1.12 * charZoom;
+      const imgW = imgH * (targetCutinImg.naturalWidth / targetCutinImg.naturalHeight);
       ctx.save();
-      // 微小な揺動
-      const jiggle = Math.sin(t * 30) * 2.5;
-      ctx.drawImage(targetCutinImg, charX - imgW / 2 + jiggle, charY - imgH / 2, imgW, imgH);
+      const jiggle = Math.sin(t * 30) * 2.0;
+      ctx.drawImage(targetCutinImg, -imgW / 2 + jiggle, -imgH / 2, imgW, imgH);
       ctx.restore();
     } else {
       // 専用画像読み込み前／未配置時の超豪華フォールバック描画！
+      const charX = slitW * 0.10;
+      const charY = 0;
       ctx.save();
       ctx.translate(charX, charY);
       ctx.scale(charZoom, charZoom);
@@ -3464,124 +3464,129 @@ class AsaichiGame {
     ctx.restore(); // rotate(angle) 終了
 
     // ========================================================
-    // 4. 水平UIレイヤー（画面の正立座標系で読みやすく配置）
+    // 4. 水平UIレイヤー
+    // ※ 専用画像がある場合は画像内の文字・セリフ吹き出しを100%活かすためCanvasの文字枠を隠し、
+    //    専用画像読み込み前（フォールバック時）のみCanvas側の文字枠を表示！
     // ========================================================
+    if (!hasCustomImg) {
+      // A. 上部タイトルプレート：「⚡ お助けキャラ登場！ ⚡」
+      const bannerW = 380;
+      const bannerH = 46;
+      const bannerX = (viewW - bannerW) / 2;
+      const bannerY = 48;
 
-    // A. 上部タイトルプレート：「⚡ お助けキャラ登場！ ⚡」
-    const bannerW = 380;
-    const bannerH = 46;
-    const bannerX = (viewW - bannerW) / 2;
-    const bannerY = 48;
-
-    // プレート背景
-    ctx.save();
-    const titleGrad = ctx.createLinearGradient(bannerX, bannerY, bannerX, bannerY + bannerH);
-    titleGrad.addColorStop(0, '#fef08a');
-    titleGrad.addColorStop(0.4, '#f59e0b');
-    titleGrad.addColorStop(1, '#b45309');
-
-    ctx.fillStyle = 'rgba(15, 23, 42, 0.95)';
-    ctx.strokeStyle = titleGrad;
-    ctx.lineWidth = 3;
-    ctx.shadowColor = '#f59e0b';
-    ctx.shadowBlur = 18;
-    ctx.beginPath();
-    ctx.roundRect(bannerX, bannerY, bannerW, bannerH, 8);
-    ctx.fill();
-    ctx.stroke();
-    ctx.restore();
-
-    // タイトル文字
-    ctx.save();
-    ctx.font = 'italic 900 24px "Impact", "Arial Black", sans-serif';
-    ctx.textAlign = 'center';
-    ctx.textBaseline = 'middle';
-    ctx.fillStyle = '#ffffff';
-    ctx.strokeStyle = '#000000';
-    ctx.lineWidth = 4;
-    ctx.strokeText('⚡ ' + cutin.title + ' ⚡', viewW / 2, bannerY + bannerH / 2);
-    ctx.fillText('⚡ ' + cutin.title + ' ⚡', viewW / 2, bannerY + bannerH / 2);
-    ctx.restore();
-
-    // B. 左下：ミケのポートレートアイコン ＋ セリフ枠
-    const boxX = 35;
-    const boxY = viewH - 125;
-    const boxW = viewW - 70;
-    const boxH = 92;
-
-    // セリフボックス背景
-    ctx.save();
-    ctx.fillStyle = 'rgba(15, 23, 42, 0.92)';
-    ctx.strokeStyle = '#e2e8f0';
-    ctx.lineWidth = 2.5;
-    ctx.shadowColor = 'rgba(0, 0, 0, 0.8)';
-    ctx.shadowBlur = 12;
-    ctx.beginPath();
-    ctx.roundRect(boxX, boxY, boxW, boxH, 10);
-    ctx.fill();
-    ctx.stroke();
-    ctx.restore();
-
-    // ミケの顔アイコン（修正済み・耳見切れのない正面おすわりミケ！）
-    const mikeIconSize = 68;
-    const mikeX = boxX + 12;
-    const mikeY = boxY + 12;
-
-    ctx.save();
-    ctx.fillStyle = '#0f172a';
-    ctx.strokeStyle = '#f59e0b';
-    ctx.lineWidth = 2;
-    ctx.beginPath();
-    ctx.roundRect(mikeX, mikeY, mikeIconSize, mikeIconSize, 8);
-    ctx.fill();
-    ctx.stroke();
-    ctx.clip();
-
-    if (this.images.cutinCat && this.images.cutinCat.complete && this.images.cutinCat.naturalWidth > 0) {
-      ctx.drawImage(this.images.cutinCat, 0, 0, this.images.cutinCat.naturalWidth, this.images.cutinCat.naturalHeight, mikeX, mikeY, mikeIconSize, mikeIconSize);
-    } else if (this.images.cat && this.images.cat.complete) {
-      ctx.imageSmoothingEnabled = false;
-      const cell = 256;
-      // Row 2（正面おすわりミケ・修正済み）を描画
-      ctx.drawImage(this.images.cat, 0, cell * 2, cell, cell, mikeX, mikeY, mikeIconSize, mikeIconSize);
-    }
-    ctx.restore();
-
-    // ミケのネームプレート
-    const textStartX = mikeX + mikeIconSize + 16;
-    ctx.save();
-    ctx.fillStyle = '#fbbf24';
-    ctx.font = 'bold 13px sans-serif';
-    ctx.fillText('🐾 看板三毛猫 ミケ', textStartX, boxY + 24);
-
-    // ミケの指定セリフ
-    ctx.font = 'bold 22px sans-serif';
-    ctx.fillStyle = '#ffffff';
-    ctx.strokeStyle = '#000000';
-    ctx.lineWidth = 3.5;
-    ctx.strokeText(cutin.speech, textStartX, boxY + 56);
-    ctx.fillText(cutin.speech, textStartX, boxY + 56);
-
-    // サブ説明文（効果の告知）
-    let effectDesc = '強烈なタンデムアタックで敵を一網打尽にするニャ！';
-    if (cutin.type === 'mikoshi') {
-      effectDesc = '勝浦の熱気あふれる神輿が敵を豪快に吹き飛ばすニャ！';
-    } else if (cutin.type === 'noraneko') {
-      effectDesc = '心強い仲間猫が一緒に戦ってくれるニャ！';
-    }
-    ctx.font = '12px sans-serif';
-    ctx.fillStyle = '#cbd5e1';
-    ctx.fillText(effectDesc, textStartX, boxY + 76);
-    ctx.restore();
-
-    // C. スキップ案内（右下に小さく点滅）
-    if (cutin.lockoutTimer <= 0) {
-      const blinkAlpha = 0.5 + Math.sin(t * 10) * 0.4;
+      // プレート背景
       ctx.save();
-      ctx.font = 'bold 11px sans-serif';
+      const titleGrad = ctx.createLinearGradient(bannerX, bannerY, bannerX, bannerY + bannerH);
+      titleGrad.addColorStop(0, '#fef08a');
+      titleGrad.addColorStop(0.4, '#f59e0b');
+      titleGrad.addColorStop(1, '#b45309');
+
+      ctx.fillStyle = 'rgba(15, 23, 42, 0.95)';
+      ctx.strokeStyle = titleGrad;
+      ctx.lineWidth = 3;
+      ctx.shadowColor = '#f59e0b';
+      ctx.shadowBlur = 18;
+      ctx.beginPath();
+      ctx.roundRect(bannerX, bannerY, bannerW, bannerH, 8);
+      ctx.fill();
+      ctx.stroke();
+      ctx.restore();
+
+      // タイトル文字
+      ctx.save();
+      ctx.font = 'italic 900 24px "Impact", "Arial Black", sans-serif';
+      ctx.textAlign = 'center';
+      ctx.textBaseline = 'middle';
+      ctx.fillStyle = '#ffffff';
+      ctx.strokeStyle = '#000000';
+      ctx.lineWidth = 4;
+      ctx.strokeText('⚡ ' + cutin.title + ' ⚡', viewW / 2, bannerY + bannerH / 2);
+      ctx.fillText('⚡ ' + cutin.title + ' ⚡', viewW / 2, bannerY + bannerH / 2);
+      ctx.restore();
+
+      // B. 左下：ミケのポートレートアイコン ＋ セリフ枠
+      const boxX = 35;
+      const boxY = viewH - 125;
+      const boxW = viewW - 70;
+      const boxH = 92;
+
+      // セリフボックス背景
+      ctx.save();
+      ctx.fillStyle = 'rgba(15, 23, 42, 0.92)';
+      ctx.strokeStyle = '#e2e8f0';
+      ctx.lineWidth = 2.5;
+      ctx.shadowColor = 'rgba(0, 0, 0, 0.8)';
+      ctx.shadowBlur = 12;
+      ctx.beginPath();
+      ctx.roundRect(boxX, boxY, boxW, boxH, 10);
+      ctx.fill();
+      ctx.stroke();
+      ctx.restore();
+
+      // ミケの顔アイコン（修正済み・耳見切れのない正面おすわりミケ！）
+      const mikeIconSize = 68;
+      const mikeX = boxX + 12;
+      const mikeY = boxY + 12;
+
+      ctx.save();
+      ctx.fillStyle = '#0f172a';
+      ctx.strokeStyle = '#f59e0b';
+      ctx.lineWidth = 2;
+      ctx.beginPath();
+      ctx.roundRect(mikeX, mikeY, mikeIconSize, mikeIconSize, 8);
+      ctx.fill();
+      ctx.stroke();
+      ctx.clip();
+
+      if (this.images.cutinCat && this.images.cutinCat.complete && this.images.cutinCat.naturalWidth > 0) {
+        ctx.drawImage(this.images.cutinCat, 0, 0, this.images.cutinCat.naturalWidth, this.images.cutinCat.naturalHeight, mikeX, mikeY, mikeIconSize, mikeIconSize);
+      } else if (this.images.cat && this.images.cat.complete) {
+        ctx.imageSmoothingEnabled = false;
+        const cell = 256;
+        // Row 2（正面おすわりミケ・修正済み）を描画
+        ctx.drawImage(this.images.cat, 0, cell * 2, cell, cell, mikeX, mikeY, mikeIconSize, mikeIconSize);
+      }
+      ctx.restore();
+
+      // ミケのネームプレート
+      const textStartX = mikeX + mikeIconSize + 16;
+      ctx.save();
+      ctx.fillStyle = '#fbbf24';
+      ctx.font = 'bold 13px sans-serif';
+      ctx.fillText('🐾 看板三毛猫 ミケ', textStartX, boxY + 24);
+
+      // ミケの指定セリフ
+      ctx.font = 'bold 22px sans-serif';
+      ctx.fillStyle = '#ffffff';
+      ctx.strokeStyle = '#000000';
+      ctx.lineWidth = 3.5;
+      ctx.strokeText(cutin.speech, textStartX, boxY + 56);
+      ctx.fillText(cutin.speech, textStartX, boxY + 56);
+
+      // サブ説明文（効果の告知）
+      let effectDesc = '強烈なタンデムアタックで敵を一網打尽にするニャ！';
+      if (cutin.type === 'mikoshi') {
+        effectDesc = '勝浦の熱気あふれる神輿が敵を豪快に吹き飛ばすニャ！';
+      } else if (cutin.type === 'noraneko') {
+        effectDesc = '心強い仲間猫が一緒に戦ってくれるニャ！';
+      }
+      ctx.font = '12px sans-serif';
+      ctx.fillStyle = '#cbd5e1';
+      ctx.fillText(effectDesc, textStartX, boxY + 76);
+      ctx.restore();
+    }
+
+    // C. スキップ案内（画像があってもなくても、右下に小さく点滅表示）
+    if (cutin.lockoutTimer <= 0) {
+      const blinkAlpha = 0.6 + Math.sin(t * 10) * 0.4;
+      ctx.save();
+      ctx.font = 'bold 12px sans-serif';
       ctx.fillStyle = `rgba(255, 255, 255, ${blinkAlpha})`;
+      ctx.shadowColor = '#000000';
+      ctx.shadowBlur = 4;
       ctx.textAlign = 'right';
-      ctx.fillText('[ 画面タップ / SPACE で即スキップ ]', boxX + boxW - 12, boxY + boxH - 10);
+      ctx.fillText('[ 画面タップ / SPACE で即スキップ ]', viewW - 20, viewH - 18);
       ctx.restore();
     }
 
