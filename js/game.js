@@ -238,8 +238,8 @@ class AsaichiGame {
       { x: 550, y: 410, w: 295, h: 125 },
       // 3. 鳥居奥・石段手前（階段の足元敷居・2段目手前）
       { x: 595, y: 360, w: 180, h: 50 },
-      // 4. 南参道縦道（画面手前中央から画面最下端へ抜ける参道）
-      { x: 580, y: 690, w: 70, h: 78 },
+      // 4. 南参道縦道（画面手前中央から画面最下端へ抜ける参道・石畳広場）
+      { x: 575, y: 685, w: 215, h: 83 },
       // 5. 左側カフェテラス前通路（カメラ女子＆迷彩服客〜パラソル前）
       { x: 0, y: 490, w: 220, h: 45 },
       // 6. 左側白テント屋台脇（SPICE COFFEE前）
@@ -5055,6 +5055,7 @@ class AsaichiGame {
     const restartBtn = document.getElementById('restart-btn');
 
     if (isClear) {
+      this.sound.startClearBGM(); // ★感動のクリア・エンディングBGM再生！
       if (headline) headline.textContent = '🎉 勝浦朝市平和奪還！完全勝利！！';
       if (starRating) starRating.textContent = '★★★★★';
       if (rankTitle) rankTitle.textContent = '勝浦朝市 伝説の守護神大明神猫';

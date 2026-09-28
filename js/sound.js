@@ -21,26 +21,34 @@ class SoundSystem {
     // ユーザー提供の本格戦闘BGM（assets/bgm.mp3）
     this.bgmAudio = new Audio('assets/bgm.mp3');
     this.bgmAudio.loop = true;
-    this.bgmAudio.volume = 0.16; // さらに音量を控えめにして心地よいバランスに調整！
+    this.bgmAudio.volume = 0.32; // 主軸BGMとしてしっかり心地よく聴こえる音量に統一！
 
-    // ★ユーザー提供の高品質リアル効果音オーディオプール
+    // ★ユーザー提供のクリア・エンディング神曲BGM（assets/bgm_clear.mp3）
+    this.clearBgmAudio = new Audio('assets/bgm_clear.mp3');
+    this.clearBgmAudio.loop = true;
+    this.clearBgmAudio.volume = 0.35; // 温かくクリアの達成感を包み込む音量！
+
+    // ★ユーザー提供の高品質リアル効果音オーディオプール（バランス調整済み）
     this.audioPool = {
       bicycle: new Audio('assets/se_bicycle.mp3'),
       mikoshi: new Audio('assets/se_mikoshi.mp3'),
       cat: new Audio('assets/se_cat.mp3'),
-      assistCutin: new Audio('assets/se_assist_cutin.mp3')
+      assistCutin: new Audio('assets/se_assist_cutin.mp3'),
+      victoryFanfare: new Audio('assets/se_victory_fanfare.mp3')
     };
-    this.audioPool.bicycle.volume = 0.55;
-    this.audioPool.mikoshi.volume = 0.55;
-    this.audioPool.cat.volume = 0.65;
-    this.audioPool.assistCutin.volume = 0.75;
+    this.audioPool.bicycle.volume = 0.45;
+    this.audioPool.mikoshi.volume = 0.48;
+    this.audioPool.cat.volume = 0.45;
+    this.audioPool.assistCutin.volume = 0.50; // 突出しない迫力バランスに調整！
+    this.audioPool.victoryFanfare.volume = 0.55;
 
     // Web Audio API でのゼロ遅延再生用バッファ
     this.customBuffers = {
       bicycle: null,
       mikoshi: null,
       cat: null,
-      assistCutin: null
+      assistCutin: null,
+      victoryFanfare: null
     };
     this.mikoshiActiveSource = null;
   }
@@ -64,7 +72,8 @@ class SoundSystem {
       bicycle: 'assets/se_bicycle.mp3',
       mikoshi: 'assets/se_mikoshi.mp3',
       cat: 'assets/se_cat.mp3',
-      assistCutin: 'assets/se_assist_cutin.mp3'
+      assistCutin: 'assets/se_assist_cutin.mp3',
+      victoryFanfare: 'assets/se_victory_fanfare.mp3'
     };
     for (const [key, path] of Object.entries(files)) {
       try {
@@ -290,13 +299,38 @@ class SoundSystem {
     });
   }
 
-  // ★完全勝利クリア専用：感動と栄光のグランドファンファーレ（金管ブラス合奏）！
+  // ★完全勝利クリア専用：感動と栄光のグランドファンファーレ！
   playVictoryFanfare() {
     if (!this.soundEnabled) return;
     this.init();
+
+    // 1. ユーザー提供の本格リアルファンファーレ音源を優先再生（Web Audio API / ゼロ遅延）
+    if (this.ctx && this.customBuffers && this.customBuffers.victoryFanfare) {
+      try {
+        const src = this.ctx.createBufferSource();
+        src.buffer = this.customBuffers.victoryFanfare;
+        const gain = this.ctx.createGain();
+        gain.gain.value = 0.55;
+        src.connect(gain);
+        gain.connect(this.ctx.destination);
+        src.start(0);
+        return;
+      } catch(e) {}
+    }
+
+    // 2. HTML5 Audio プールでのフォールバック再生
+    if (this.audioPool && this.audioPool.victoryFanfare) {
+      try {
+        const audio = this.audioPool.victoryFanfare.cloneNode();
+        audio.volume = 0.55;
+        audio.play().catch(() => {});
+        return;
+      } catch(e) {}
+    }
+
     if (!this.ctx) return;
 
-    // トランペット／ブラス風の音を合成する内部関数
+    // 3. シンセ合成フォールバック（音源未ロード時用）
     const playBrass = (freq, time, dur, vol = 0.24) => {
       try {
         const osc = this.ctx.createOscillator();
@@ -637,7 +671,7 @@ class SoundSystem {
         const src = this.ctx.createBufferSource();
         src.buffer = this.customBuffers.assistCutin;
         const gain = this.ctx.createGain();
-        gain.gain.value = 0.85;
+        gain.gain.value = 0.50; // バランスの良い音量に調整！
         src.connect(gain);
         gain.connect(this.ctx.destination);
         src.start(0);
@@ -649,7 +683,7 @@ class SoundSystem {
     if (this.audioPool && this.audioPool.assistCutin) {
       try {
         const audio = this.audioPool.assistCutin.cloneNode();
-        audio.volume = 0.85;
+        audio.volume = 0.50;
         audio.play().catch(() => {});
       } catch(e) {}
     }
@@ -658,6 +692,7 @@ class SoundSystem {
   // ★平和モードBGM開始（のどかな朝市のWeb Audioレトロチップチューン！）
   startPeaceBGM() {
     this.stopBattleBGM();
+    this.stopClearBGM();
     this.stopPeaceBGM();
     if (!this.soundEnabled) return;
     this.init();
@@ -681,9 +716,9 @@ class SoundSystem {
 
       if (note.f > 0) {
         // 主旋律（柔らかな矩形波、耳に優しい控えめ音量）
-        this.playTone(note.f, 'square', duration * 0.85, 0.022);
+        this.playTone(note.f, 'square', duration * 0.85, 0.035);
         // 優しい三角波ベース
-        this.playTone(note.f / 2, 'triangle', duration * 0.9, 0.028);
+        this.playTone(note.f / 2, 'triangle', duration * 0.9, 0.040);
       }
 
       noteIdx = (noteIdx + 1) % melody.length;
@@ -705,6 +740,7 @@ class SoundSystem {
   // ★戦闘モードBGM開始（ヤンキー登場以降：ユーザー提供の神曲MP3！）
   startBattleBGM() {
     this.stopPeaceBGM();
+    this.stopClearBGM();
     if (!this.soundEnabled) return;
     this.init();
 
@@ -729,10 +765,42 @@ class SoundSystem {
     } catch(e) {}
   }
 
+  // ★クリア・エンディングモードBGM開始（ユーザー提供の爽快温かい神曲MP3！）
+  startClearBGM() {
+    this.stopPeaceBGM();
+    this.stopBattleBGM();
+    if (!this.soundEnabled) return;
+    this.init();
+
+    this.currentBgmType = 'CLEAR';
+    try {
+      if (this.clearBgmAudio) {
+        this.clearBgmAudio.currentTime = 0;
+        const promise = this.clearBgmAudio.play();
+        if (promise !== undefined) {
+          promise.catch(e => {
+            console.log('Clear BGM play prevented or waiting for user interaction', e);
+          });
+        }
+      }
+    } catch(e) {}
+  }
+
+  // クリアBGM停止
+  stopClearBGM() {
+    try {
+      if (this.clearBgmAudio) {
+        this.clearBgmAudio.pause();
+      }
+    } catch(e) {}
+  }
+
   // 汎用BGM開始（デフォルトは現在の状態、未指定なら平和モード）
   startBGM() {
     if (this.currentBgmType === 'BATTLE') {
       this.startBattleBGM();
+    } else if (this.currentBgmType === 'CLEAR') {
+      this.startClearBGM();
     } else {
       this.startPeaceBGM();
     }
@@ -742,6 +810,7 @@ class SoundSystem {
   stopBGM() {
     this.stopPeaceBGM();
     this.stopBattleBGM();
+    this.stopClearBGM();
     this.stopMikoshiSound();
     this.currentBgmType = 'NONE';
   }
