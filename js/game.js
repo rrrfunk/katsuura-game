@@ -39,8 +39,10 @@ class AsaichiGame {
       mikoshi: new Image(),
       cat: new Image(),
       yankees: new Image(),
-      items: new Image()
+      items: new Image(),
+      walkableMask: new Image()
     };
+    this.walkableBitmap = null; // 1376x768 ユーザー手描き通行可能ビットマップ (1: 通行可能, 0: 立入禁止)
     this.tandemBikeCanvas = null; // 黒背景を透明化したCanvasキャッシュ
     this.tandemRushes = []; // 走行中のタンデムバイクリスト
     this.mikoshiRushes = []; // 走行中の勝浦神輿軍団リスト
@@ -167,13 +169,15 @@ class AsaichiGame {
       { img: this.images.mikoshi,       src: `assets/katsuura_mikoshi.png?v=${cacheKey}` },
       { img: this.images.cat,           src: `assets/cat_sprites.png?v=${cacheKey}` },
       { img: this.images.yankees,       src: `assets/yankee_sprites.png?v=${cacheKey}` },
-      { img: this.images.items,         src: `assets/items.png?v=${cacheKey}` }
+      { img: this.images.items,         src: `assets/items.png?v=${cacheKey}` },
+      { img: this.images.walkableMask,   src: `assets/walkable_mask.png?v=${cacheKey}` }
     ];
     const total = list.length;
     const check = () => {
       loaded++;
       if (loaded >= total) {
         this.assetsLoaded = true;
+        this.prepareWalkableMask();
         this.prepareTransparentTandemBike();
       }
     };
@@ -189,6 +193,48 @@ class AsaichiGame {
         check();
       }
     });
+  }
+
+  // ユーザー手描き通行可能マスク画像（assets/walkable_mask.png）をUint8Arrayビットマップに展開
+  prepareWalkableMask() {
+    try {
+      const img = this.images.walkableMask;
+      if (!img || !img.naturalWidth) {
+        console.warn('[WalkableMask] Image not loaded yet');
+        return;
+      }
+      const offCanvas = document.createElement('canvas');
+      offCanvas.width = this.worldW;
+      offCanvas.height = this.worldH;
+      const offCtx = offCanvas.getContext('2d');
+      offCtx.drawImage(img, 0, 0, this.worldW, this.worldH);
+      const imgData = offCtx.getImageData(0, 0, this.worldW, this.worldH);
+      const data = imgData.data;
+
+      this.walkableBitmap = new Uint8Array(this.worldW * this.worldH);
+      for (let i = 0; i < this.worldW * this.worldH; i++) {
+        // 白(255)が通行可能、黒(0)が立入禁止
+        this.walkableBitmap[i] = data[i * 4] > 128 ? 1 : 0;
+      }
+      console.log('✨ [WalkableMask] ユーザー様指定通行可能マスク（1376x768）展開完了！ピクセルパーフェクト当たり判定稼働');
+    } catch (e) {
+      console.warn('Walkable mask loading failed, fallback to box colliders', e);
+    }
+  }
+
+  // 指定座標が通行可能か判定（1ピクセル精度）
+  isPixelWalkable(x, y) {
+    const ix = Math.floor(x);
+    const iy = Math.floor(y);
+    // 外周境界壁（端っこへのめり込み・画面外落下防止：外周10pxは通行不可）
+    if (ix < 10 || ix >= this.worldW - 10 || iy < 10 || iy >= this.worldH - 10) {
+      return false;
+    }
+    if (this.walkableBitmap) {
+      return this.walkableBitmap[iy * this.worldW + ix] === 1;
+    }
+    // ビットマップ展開前のフォールバック（四角形コライダー）
+    return !this.isInsideForbiddenArea(x, y);
   }
 
   // タンデムクロスバイクの黒背景を自動透過してキャッシュ
@@ -221,7 +267,7 @@ class AsaichiGame {
     }
   }
 
-  // コライダー設定（鳥居左茂み完全立入禁止＆白テント屋台正確判定＆手前回り込み構造）
+  // コライダー設定（ビットマップ未読込時のフォールバック用）
   initColliders() {
     this.colliders = [
       // 1. 外周境界壁（画面外へのすり抜け防止）
@@ -234,28 +280,36 @@ class AsaichiGame {
       { x: 0, y: 0, w: 400, h: 340 },     // 北町屋・左側屋根
       { x: 860, y: 0, w: 516, h: 340 },   // 北町屋・右側屋根
 
-      // 3. 遠見岬神社（鳥居・雛壇・茂み・玉垣・石灯籠・柱すべて完全立入禁止！）
-      { x: 400, y: 0, w: 460, h: 460 },   // 神社境内・石段・鳥居・左右の森すべて完全侵入不可！
+      // 3. 遠見岬神社（鳥居・雛壇・茂み）
+      { x: 400, y: 0, w: 460, h: 460 },   // 神社境内・石段・鳥居・左右の森
 
       // 4. 左側中段（テラス席、SPICE COFFEE自転車ワゴン、白テント屋台、A型看板）
-      { x: 0, y: 390, w: 240, h: 65 },    // テラス傘席（オレンジ＆青白パラソル列）
-      { x: 60, y: 490, w: 180, h: 60 },   // テラス客席（カメラ女子＆迷彩服男性）※傘との間 y: 455〜490 は小道として通れる！
-      { x: 375, y: 340, w: 185, h: 140 }, // 白テント屋台本体（おばちゃん・商品台・緑黒板）※左側SPICE看板前は広々通れる！
-      { x: 235, y: 490, w: 260, h: 75 },  // 自転車ワゴン本体〜A型黒板看板 ※真下の石畳は通れる！
+      { x: 0, y: 390, w: 240, h: 65 },    // テラス傘席
+      { x: 60, y: 490, w: 180, h: 60 },   // テラス客席
+      { x: 375, y: 340, w: 185, h: 140 }, // 白テント屋台本体
+      { x: 235, y: 490, w: 260, h: 75 },  // 自転車ワゴン本体〜A型黒板看板
 
       // 5. 右側中段（魚トロ箱ICE、青白干物棚、紺色テント八百屋、野菜木箱棚）
-      // ※上部の北町屋軒下 y: 340〜430 は、魚屋の裏を通り抜けられる奥の小道！
       { x: 870, y: 430, w: 506, h: 140 },
 
-      // 6. 南側（手前オブジェクト全体：客席・テーブル・パラソル・干物台・屋台）
-      // ※中央石畳通路（x: 440〜645）のみ画面最下端（y: 755まで）完全に通過可能！
-      { x: 0, y: 580, w: 440, h: 188 },   // 南左手前客席全体（テーブル・客・パラソル）
-      { x: 645, y: 580, w: 731, h: 188 }  // 南右手前屋台全体（干物台・魚箱・観客）
+      // 6. 南側（手前オブジェクト全体）
+      { x: 0, y: 580, w: 440, h: 188 },   // 南左手前客席全体
+      { x: 645, y: 580, w: 731, h: 188 }  // 南右手前屋台全体
     ];
   }
 
-  // 立入禁止エリア内外判定ヘルパー（マージン指定可能）
+  // 立入禁止エリア内外判定ヘルパー（敵・アイテムスポーン判定用）
   isInsideForbiddenArea(x, y, margin = 0) {
+    if (this.walkableBitmap) {
+      if (!this.isPixelWalkable(x, y)) return true;
+      if (margin > 0) {
+        if (!this.isPixelWalkable(x - margin, y) || !this.isPixelWalkable(x + margin, y) ||
+            !this.isPixelWalkable(x, y - margin) || !this.isPixelWalkable(x, y + margin)) {
+          return true;
+        }
+      }
+      return false;
+    }
     for (let c of this.colliders) {
       if (x >= c.x - margin && x <= c.x + c.w + margin &&
           y >= c.y - margin && y <= c.y + c.h + margin) {
@@ -265,8 +319,13 @@ class AsaichiGame {
     return false;
   }
 
-  // 足元接地衝突判定
+  // 足元接地衝突判定（ピクセルマスク最優先・1ピクセル精度で狭い小道もスイスイ通過！）
   checkFootCollision(fx, fy) {
+    if (this.walkableBitmap) {
+      // 足元の中心点が通行不可（黒）なら衝突！
+      // ユーザー様が塗られた通行可能エリア（白）の境界線ギリギリまでスムーズに歩ける
+      return !this.isPixelWalkable(fx, fy);
+    }
     const boxW = 16;
     const boxH = 8;
     for (let c of this.colliders) {
@@ -287,17 +346,15 @@ class AsaichiGame {
         const angle = (i / 16) * Math.PI * 2;
         const testX = entity.x + Math.cos(angle) * r;
         const testY = entity.y + Math.sin(angle) * r;
-        if (testX >= 25 && testX <= this.worldW - 25 && testY >= 25 && testY <= this.worldH - 25) {
-          if (!this.checkFootCollision(testX, testY)) {
-            entity.x = testX;
-            entity.y = testY;
-            return;
-          }
+        if (this.isPixelWalkable(testX, testY) && !this.checkFootCollision(testX, testY)) {
+          entity.x = testX;
+          entity.y = testY;
+          return;
         }
       }
     }
     entity.x = 660;
-    entity.y = 460;
+    entity.y = 530;
   }
 
   // キーボード・UIイベント
