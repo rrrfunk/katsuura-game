@@ -39,10 +39,8 @@ class AsaichiGame {
       mikoshi: new Image(),
       cat: new Image(),
       yankees: new Image(),
-      items: new Image(),
-      walkableMask: new Image()
+      items: new Image()
     };
-    this.walkableBitmap = null; // 1376x768 ユーザー手描き通行可能ビットマップ (1: 通行可能, 0: 立入禁止)
     this.tandemBikeCanvas = null; // 黒背景を透明化したCanvasキャッシュ
     this.tandemRushes = []; // 走行中のタンデムバイクリスト
     this.mikoshiRushes = []; // 走行中の勝浦神輿軍団リスト
@@ -169,15 +167,13 @@ class AsaichiGame {
       { img: this.images.mikoshi,       src: `assets/katsuura_mikoshi.png?v=${cacheKey}` },
       { img: this.images.cat,           src: `assets/cat_sprites.png?v=${cacheKey}` },
       { img: this.images.yankees,       src: `assets/yankee_sprites.png?v=${cacheKey}` },
-      { img: this.images.items,         src: `assets/items.png?v=${cacheKey}` },
-      { img: this.images.walkableMask,   src: `assets/walkable_mask.png?v=${cacheKey}` }
+      { img: this.images.items,         src: `assets/items.png?v=${cacheKey}` }
     ];
     const total = list.length;
     const check = () => {
       loaded++;
       if (loaded >= total) {
         this.assetsLoaded = true;
-        this.prepareWalkableMask();
         this.prepareTransparentTandemBike();
       }
     };
@@ -193,48 +189,6 @@ class AsaichiGame {
         check();
       }
     });
-  }
-
-  // ユーザー手描き通行可能マスク画像（assets/walkable_mask.png）をUint8Arrayビットマップに展開
-  prepareWalkableMask() {
-    try {
-      const img = this.images.walkableMask;
-      if (!img || !img.naturalWidth) {
-        console.warn('[WalkableMask] Image not loaded yet');
-        return;
-      }
-      const offCanvas = document.createElement('canvas');
-      offCanvas.width = this.worldW;
-      offCanvas.height = this.worldH;
-      const offCtx = offCanvas.getContext('2d');
-      offCtx.drawImage(img, 0, 0, this.worldW, this.worldH);
-      const imgData = offCtx.getImageData(0, 0, this.worldW, this.worldH);
-      const data = imgData.data;
-
-      this.walkableBitmap = new Uint8Array(this.worldW * this.worldH);
-      for (let i = 0; i < this.worldW * this.worldH; i++) {
-        // 白(255)が通行可能、黒(0)が立入禁止
-        this.walkableBitmap[i] = data[i * 4] > 128 ? 1 : 0;
-      }
-      console.log('✨ [WalkableMask] ユーザー様指定通行可能マスク（1376x768）展開完了！ピクセルパーフェクト当たり判定稼働');
-    } catch (e) {
-      console.warn('Walkable mask loading failed, fallback to box colliders', e);
-    }
-  }
-
-  // 指定座標が通行可能か判定（1ピクセル精度）
-  isPixelWalkable(x, y) {
-    const ix = Math.floor(x);
-    const iy = Math.floor(y);
-    // 外周境界壁（端っこへのめり込み・画面外落下防止：外周10pxは通行不可）
-    if (ix < 10 || ix >= this.worldW - 10 || iy < 10 || iy >= this.worldH - 10) {
-      return false;
-    }
-    if (this.walkableBitmap) {
-      return this.walkableBitmap[iy * this.worldW + ix] === 1;
-    }
-    // ビットマップ展開前のフォールバック（四角形コライダー）
-    return !this.isInsideForbiddenArea(x, y);
   }
 
   // タンデムクロスバイクの黒背景を自動透過してキャッシュ
@@ -267,50 +221,48 @@ class AsaichiGame {
     }
   }
 
-  // コライダー設定（ビットマップ未読込時のフォールバック用）
+  // 精密コライダー設定（ユーザー指定の赤塗り通行可能エリアに100%合致・直線AABBで壁ずり完全滑らか＆超軽量！）
   initColliders() {
     this.colliders = [
-      // 1. 外周境界壁（画面外へのすり抜け防止）
-      { x: 0, y: 0, w: 1376, h: 15 },
-      { x: 0, y: 755, w: 1376, h: 20 },
-      { x: 0, y: 0, w: 15, h: 768 },
-      { x: 1361, y: 0, w: 15, h: 768 },
+      // 1. 外周境界壁（画面外へのすり抜け防止：ただし敵スポーン通路は開放）
+      { x: 0, y: 0, w: 1376, h: 10 },        // 最上端外壁
+      { x: 0, y: 760, w: 440, h: 20 },       // 最下端・左側壁
+      { x: 650, y: 760, w: 726, h: 20 },     // 最下端・右側壁（※中央 x: 440〜650 は画面最下端まで通れる！）
+      { x: 0, y: 0, w: 10, h: 580 },         // 左端上部壁（※y: 580〜685 は左抜け道）
+      { x: 0, y: 685, w: 10, h: 83 },        // 左端下部壁
+      { x: 1366, y: 0, w: 10, h: 540 },      // 右端上部壁（※y: 540〜685 は右抜け道）
+      { x: 1366, y: 685, w: 10, h: 83 },     // 右端下部壁
 
-      // 2. 北町屋の屋根（上部全域：建物本体）
-      { x: 0, y: 0, w: 400, h: 340 },     // 北町屋・左側屋根
-      { x: 860, y: 0, w: 516, h: 340 },   // 北町屋・右側屋根
+      // 2. 北町屋の屋根（上部全域：建物本体・奥の森）
+      { x: 0, y: 0, w: 480, h: 350 },        // 北町屋・左側屋根
+      { x: 660, y: 0, w: 716, h: 340 },      // 北町屋・右側屋根
 
-      // 3. 遠見岬神社（鳥居・雛壇・茂み）
-      { x: 400, y: 0, w: 460, h: 460 },   // 神社境内・石段・鳥居・左右の森
+      // 3. 遠見岬神社（石段・雛壇・奥の森）
+      // ★鳥居真下の石畳（x: 480〜660, y: 360〜550）は完全に通れる！
+      { x: 480, y: 0, w: 180, h: 360 },      // 神社石段雛壇・奥の森
 
       // 4. 左側中段（テラス席、SPICE COFFEE自転車ワゴン、白テント屋台、A型看板）
-      { x: 0, y: 390, w: 240, h: 65 },    // テラス傘席
-      { x: 60, y: 490, w: 180, h: 60 },   // テラス客席
-      { x: 375, y: 340, w: 185, h: 140 }, // 白テント屋台本体
-      { x: 235, y: 490, w: 260, h: 75 },  // 自転車ワゴン本体〜A型黒板看板
+      { x: 0, y: 350, w: 220, h: 80 },       // テラス席上部パラソル（※y: 430〜490 の小道は通れる！）
+      { x: 0, y: 490, w: 135, h: 60 },       // テラス席客席（カメラ女子＆迷彩服男性）
+      { x: 145, y: 490, w: 220, h: 75 },     // SPICE COFFEE自転車ワゴン本体
+      { x: 375, y: 490, w: 65, h: 75 },      // A型黒板看板
+      { x: 375, y: 350, w: 185, h: 135 },    // 白テント屋台本体（おばちゃん・商品台）※下側y:485〜と左側は通れる！
 
-      // 5. 右側中段（魚トロ箱ICE、青白干物棚、紺色テント八百屋、野菜木箱棚）
-      { x: 870, y: 430, w: 506, h: 140 },
+      // 5. 右側中段（魚トロ箱ICE、青白干物棚、紺色テント八百屋）
+      // ★魚屋・八百屋の前（y: 530〜）は広々通れる！
+      { x: 870, y: 340, w: 496, h: 190 },
 
-      // 6. 南側（手前オブジェクト全体）
-      { x: 0, y: 580, w: 440, h: 188 },   // 南左手前客席全体
-      { x: 645, y: 580, w: 731, h: 188 }  // 南右手前屋台全体
+      // 6. 南側（手前オブジェクト全体：客席・テーブル・パラソル・干物台）
+      // ★中央石畳通路（x: 440〜650）のみ画面最下端（y: 760まで）完全に通過可能！
+      { x: 0, y: 685, w: 440, h: 83 },       // 南左手前客席全体
+      { x: 650, y: 685, w: 726, h: 83 }      // 南右手前屋台全体
     ];
   }
 
   // 立入禁止エリア内外判定ヘルパー（敵・アイテムスポーン判定用）
   isInsideForbiddenArea(x, y, margin = 0) {
-    if (this.walkableBitmap) {
-      if (!this.isPixelWalkable(x, y)) return true;
-      if (margin > 0) {
-        if (!this.isPixelWalkable(x - margin, y) || !this.isPixelWalkable(x + margin, y) ||
-            !this.isPixelWalkable(x, y - margin) || !this.isPixelWalkable(x, y + margin)) {
-          return true;
-        }
-      }
-      return false;
-    }
-    for (let c of this.colliders) {
+    for (let i = 0; i < this.colliders.length; i++) {
+      const c = this.colliders[i];
       if (x >= c.x - margin && x <= c.x + c.w + margin &&
           y >= c.y - margin && y <= c.y + c.h + margin) {
         return true;
@@ -319,16 +271,12 @@ class AsaichiGame {
     return false;
   }
 
-  // 足元接地衝突判定（ピクセルマスク最優先・1ピクセル精度で狭い小道もスイスイ通過！）
+  // 足元接地衝突判定（超軽量・直線AABB・14x6px足幅で引っかかりゼロ＆壁ずり滑らか！）
   checkFootCollision(fx, fy) {
-    if (this.walkableBitmap) {
-      // 足元の中心点が通行不可（黒）なら衝突！
-      // ユーザー様が塗られた通行可能エリア（白）の境界線ギリギリまでスムーズに歩ける
-      return !this.isPixelWalkable(fx, fy);
-    }
-    const boxW = 16;
-    const boxH = 8;
-    for (let c of this.colliders) {
+    const boxW = 14;
+    const boxH = 6;
+    for (let i = 0; i < this.colliders.length; i++) {
+      const c = this.colliders[i];
       if (fx + boxW / 2 > c.x && fx - boxW / 2 < c.x + c.w &&
           fy + boxH / 2 > c.y && fy - boxH / 2 < c.y + c.h) {
         return true;
@@ -337,19 +285,21 @@ class AsaichiGame {
     return false;
   }
 
-  // アンスタック救出機構（壁めり込み完全防止！）
+  // アンスタック救出機構（プレイヤー専用・安全地帯へ即時復帰）
   unstuckEntity(entity) {
     if (!this.checkFootCollision(entity.x, entity.y)) return;
 
-    for (let r = 2; r <= 80; r += 4) {
-      for (let i = 0; i < 16; i++) {
-        const angle = (i / 16) * Math.PI * 2;
+    for (let r = 4; r <= 60; r += 6) {
+      for (let i = 0; i < 8; i++) {
+        const angle = (i / 8) * Math.PI * 2;
         const testX = entity.x + Math.cos(angle) * r;
         const testY = entity.y + Math.sin(angle) * r;
-        if (this.isPixelWalkable(testX, testY) && !this.checkFootCollision(testX, testY)) {
-          entity.x = testX;
-          entity.y = testY;
-          return;
+        if (testX >= 20 && testX <= this.worldW - 20 && testY >= 20 && testY <= this.worldH - 20) {
+          if (!this.checkFootCollision(testX, testY)) {
+            entity.x = testX;
+            entity.y = testY;
+            return;
+          }
         }
       }
     }
@@ -2132,7 +2082,6 @@ class AsaichiGame {
         e.y += vy;
       } else {
         this.moveWithCollision(e, vx, vy);
-        this.unstuckEntity(e);
       }
 
       // 敵同士の重なり回避（分離）
