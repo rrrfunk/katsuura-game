@@ -1263,20 +1263,32 @@ class AsaichiGame {
     this.fireMeowShockwave(2.2);
   }
 
+  // 最寄り敵の探索（O(N)超軽量・高速処理）
+  getClosestEnemy(x, y, maxDist = Infinity) {
+    let closest = null;
+    let minDistSq = maxDist * maxDist;
+    for (let i = 0; i < this.enemies.length; i++) {
+      const e = this.enemies[i];
+      const dx = e.x - x;
+      const dy = e.y - y;
+      const distSq = dx * dx + dy * dy;
+      if (distSq < minDistSq) {
+        minDistSq = distSq;
+        closest = e;
+      }
+    }
+    return closest;
+  }
+
   // 自動爪撃（親ミケ＋子ミケ連動：ツメLv3＆子ミケ3匹で合計14ツメ一斉射出！）
   fireAutoScratch(dmgMult) {
     if (this.enemies.length === 0) return;
     const p = this.player;
     const lv = this.skills.scratch.level;
 
-    // 最寄りの敵を索敵（範囲を狭くコンパクトに：165px以内）
-    const sorted = [...this.enemies].sort((a, b) => {
-      return Math.hypot(a.x - p.x, a.y - p.y) - Math.hypot(b.x - p.x, b.y - p.y);
-    });
-
-    const target = sorted[0];
-    const targetDist = Math.hypot(target.x - p.x, target.y - (p.y - 12));
-    if (targetDist > 165) return; // 間合いに入った時だけ発動（範囲を狭く！）
+    // 最寄りの敵を索敵（O(N)で超高速化！165px以内）
+    const target = this.getClosestEnemy(p.x, p.y - 12, 165);
+    if (!target) return; // 間合いに入った時だけ発動
 
     const baseAngle = Math.atan2(target.y - (p.y - 12), target.x - p.x);
     this.sound.playSlash();
@@ -1371,11 +1383,8 @@ class AsaichiGame {
 
     // ターゲット角度（最寄りの敵、敵がいない時はプレイヤーの向き）
     let targetAngle = 0;
-    if (this.enemies.length > 0) {
-      const sorted = [...this.enemies].sort((a, b) => {
-        return Math.hypot(a.x - p.x, a.y - p.y) - Math.hypot(b.x - p.x, b.y - p.y);
-      });
-      const target = sorted[0];
+    const target = this.getClosestEnemy(p.x, p.y - 10);
+    if (target) {
       targetAngle = Math.atan2(target.y - (p.y - 10), target.x - p.x);
     } else {
       if (p.facing === 1) targetAngle = 0;
@@ -1929,14 +1938,14 @@ class AsaichiGame {
     // ★ユーザー要望：15.0秒未満は敵スポーン完全停止（平和な勝浦朝市散策タイムを満喫！）
     if (time < 15.0) return;
 
-    // 序盤から爽快感を感じられるよう敵の出現頻度＆上限数を全体的にアップ！
-    let spawnInterval = 1.2;
-    let maxEnemies = 10;
+    // 序盤から爽快感を感じられるよう敵の出現頻度＆上限数を適正化（最大35体上限で絶対に重くならない！）
+    let spawnInterval = 1.0;
+    let maxEnemies = 8;
     let spawnBatch = 1;
 
-    if (time > 25) { spawnInterval = 0.65; maxEnemies = 22; spawnBatch = 2; }
-    if (time > 45) { spawnInterval = 0.35; maxEnemies = 45; spawnBatch = 2; }
-    if (time > 75) { spawnInterval = 0.20; maxEnemies = 85; spawnBatch = 3; }
+    if (time > 25) { spawnInterval = 0.75; maxEnemies = 16; spawnBatch = 1; }
+    if (time > 45) { spawnInterval = 0.50; maxEnemies = 25; spawnBatch = 2; }
+    if (time > 75) { spawnInterval = 0.35; maxEnemies = 35; spawnBatch = 2; }
 
     if (this.enemySpawnTimer >= spawnInterval && this.enemies.length < maxEnemies) {
       this.enemySpawnTimer = 0;
@@ -1975,12 +1984,12 @@ class AsaichiGame {
     }
 
     // ラッシュイベント（中盤以降に発生。画面外通路から大軍勢が押し寄せる！）
-    if (time >= 45 && this.hordeTimer >= (time >= 75 ? 7.0 : 10.0)) {
+    if (time >= 45 && this.hordeTimer >= (time >= 75 ? 8.0 : 12.0)) {
       this.hordeTimer = 0;
       const hordeType = Math.random() < 0.5 ? 'kyon' : 'tsuppari';
-      const hordeCount = time >= 75 ? 22 : 12;
+      const hordeCount = time >= 75 ? 8 : 5;
       for (let h = 0; h < hordeCount; h++) {
-        if (this.enemies.length < maxEnemies + 15) {
+        if (this.enemies.length < maxEnemies) {
           this.spawnEnemy(hordeType);
         }
       }
@@ -2064,9 +2073,48 @@ class AsaichiGame {
     return enemyObj;
   }
 
+  // 敵専用の超軽量・確実な進入＆歩行ゾーン制御移動システム
+  moveEnemy(e, vx, vy) {
+    // 1. まだ歩行可能ゾーン外（画面外の出現地点等）にいる場合：障害物チェックなしでゾーン内へ直進進入！
+    if (!this.isPointWalkable(e.x, e.y)) {
+      e.x += vx;
+      e.y += vy;
+      return;
+    }
+
+    // 2. 既にゾーン内にいる場合：ゾーン外（露店や建物）へ出ないように制御
+    const nextX = e.x + vx;
+    const nextY = e.y + vy;
+
+    if (this.isPointWalkable(nextX, nextY)) {
+      e.x = nextX;
+      e.y = nextY;
+      return;
+    }
+
+    // 斜め移動時のスライド（X軸のみ or Y軸のみ）
+    if (this.isPointWalkable(nextX, e.y)) {
+      e.x = nextX;
+      return;
+    }
+    if (this.isPointWalkable(e.x, nextY)) {
+      e.y = nextY;
+      return;
+    }
+
+    // ゾーンの角に引っかかった場合の微小推進（スタック防止）
+    e.x += vx * 0.2;
+    e.y += vy * 0.2;
+  }
+
   // 敵の行動・AI
   updateEnemies(dt) {
     const p = this.player;
+
+    // NPCビビり演出クールダウン（敵ループの外で1回だけ減算！）
+    for (let s of this.npcSpots) {
+      if (s.cooldown > 0) s.cooldown -= dt;
+    }
 
     for (let i = this.enemies.length - 1; i >= 0; i--) {
       const e = this.enemies[i];
@@ -2105,37 +2153,39 @@ class AsaichiGame {
       e.dir = dx > 0 ? 'right' : 'left';
       e.animTimer += dt * (e.speed * 3);
 
-      // 移動
+      // 移動（トンビは飛行、地上敵は moveEnemy でスムーズ進入＆ゾーン内制御）
       const vx = dx * e.speed;
       const vy = dy * e.speed;
       if (e.isFlying) {
-        // トンビは障害物無視で飛行
         e.x += vx;
         e.y += vy;
       } else {
-        this.moveWithCollision(e, vx, vy);
+        this.moveEnemy(e, vx, vy);
       }
 
-      // 敵同士の重なり回避（分離）
-      for (let j = 0; j < Math.min(this.enemies.length, 12); j++) {
-        const other = this.enemies[j];
-        if (other !== e) {
-          const sepD = Math.hypot(e.x - other.x, e.y - other.y);
-          if (sepD < 24 && sepD > 0.1) {
-            e.x += ((e.x - other.x) / sepD) * 0.8;
-            e.y += ((e.y - other.y) / sepD) * 0.8;
+      // 敵同士の重なり回避（分離：ゾーン内にいる時のみ）
+      if (this.isPointWalkable(e.x, e.y)) {
+        for (let j = 0; j < Math.min(this.enemies.length, 10); j++) {
+          const other = this.enemies[j];
+          if (other !== e && this.isPointWalkable(other.x, other.y)) {
+            const sepD = Math.hypot(e.x - other.x, e.y - other.y);
+            if (sepD < 22 && sepD > 0.1) {
+              e.x += ((e.x - other.x) / sepD) * 0.6;
+              e.y += ((e.y - other.y) / sepD) * 0.6;
+            }
           }
         }
       }
 
       // 店主・観光客のビビりリアクション演出
       for (let s of this.npcSpots) {
-        if (s.cooldown > 0) s.cooldown -= dt;
-        const nDist = Math.hypot(e.x - s.x, e.y - s.y);
-        if (nDist < 130 && s.cooldown <= 0) {
-          s.cooldown = 2.2 + Math.random() * 2.0;
-          const pickType = Math.random() < 0.65 ? 'sweat' : 'exclamation';
-          this.addParticle(s.x + (Math.random() - 0.5) * 16, s.y - 35, pickType);
+        if (s.cooldown <= 0) {
+          const nDist = Math.hypot(e.x - s.x, e.y - s.y);
+          if (nDist < 120) {
+            s.cooldown = 2.5 + Math.random() * 2.0;
+            const pickType = Math.random() < 0.65 ? 'sweat' : 'exclamation';
+            this.addParticle(s.x + (Math.random() - 0.5) * 16, s.y - 35, pickType);
+          }
         }
       }
 
@@ -2410,8 +2460,8 @@ class AsaichiGame {
       this.addComicPopup(p.x, p.y - 30, '☕ カフェイン加速！', '#38bdf8');
       this.triggerTandemBikeRush();
     } else if (item.type === 'warabi') {
-      // 🍡 南蛮屋わらび餅：HP回復完全ゼロ！助太刀ネコ参上 ＋ 接触防御シールドに特化！
-      this.sound.playMeow();
+      if (typeof this.sound.playMeow === 'function') this.sound.playMeow();
+      else if (typeof this.sound.playMeowRoar === 'function') this.sound.playMeowRoar();
       p.shieldBuffTimer = 3.5; // 3.5秒間シールド展開（敵接触を弾く）
       for (let s = 0; s < 8; s++) this.addParticle(p.x, p.y, 'confetti');
       this.addComicPopup(p.x, p.y - 30, '🍡 助太刀ネコ参上！', '#10b981');
@@ -2717,18 +2767,20 @@ class AsaichiGame {
     };
 
     // プレイヤーの周囲に金色のレベルアップ光輪パーティクル
-    for (let i = 0; i < 28; i++) {
-      const angle = (i / 28) * Math.PI * 2;
+    for (let i = 0; i < 16; i++) {
+      if (this.particles.length >= 60) break;
+      const angle = (i / 16) * Math.PI * 2;
       this.particles.push({
         type: 'spark',
         x: p.x,
         y: p.y - 12,
-        vx: Math.cos(angle) * 160,
-        vy: Math.sin(angle) * 160,
+        vx: Math.cos(angle) * 3.5,
+        vy: Math.sin(angle) * 3.5,
         color: '#fbbf24',
-        life: 0.8,
-        maxLife: 0.8,
-        size: 5
+        alpha: 1.0,
+        life: 0.7,
+        maxLife: 0.7,
+        size: 4
       });
     }
 
@@ -3829,13 +3881,9 @@ class AsaichiGame {
     ctx.ellipse(0, 0, e.w / 2, 7, 0, 0, Math.PI * 2);
     ctx.fill();
 
-    // 3. 被弾ホワイトフラッシュ・白熱点滅
+    // 3. 被弾ホワイトフラッシュ・白熱点滅（超激重な ctx.filter を完全撤廃し、超軽量オーバーレイで実現！）
     const isHitFlashing = (e.hitFlashTimer > 0);
-    if (isHitFlashing) {
-      ctx.filter = 'brightness(3.2) contrast(1.4)';
-    } else if (e.stunTimer > 0 && Math.floor(Date.now() / 80) % 2 === 0) {
-      ctx.filter = 'brightness(2.0)';
-    }
+    const isStunFlashing = (e.stunTimer > 0 && Math.floor(Date.now() / 80) % 2 === 0);
 
     if (e.type === 'kyon' || e.type === 'boss_kyon') {
       // 房総名物キョン（ピョンピョン跳ねる小型シカのプロシージャルドット絵）
@@ -3971,6 +4019,14 @@ class AsaichiGame {
       ctx.stroke();
 
       ctx.restore();
+    }
+
+    // 被弾ホワイトフラッシュ・白熱点滅の軽量オーバーレイ
+    if (isHitFlashing || isStunFlashing) {
+      ctx.fillStyle = isHitFlashing ? 'rgba(255, 255, 255, 0.75)' : 'rgba(253, 224, 71, 0.6)';
+      ctx.beginPath();
+      ctx.ellipse(0, -e.h * 0.45, e.w * 0.45, e.h * 0.45, 0, 0, Math.PI * 2);
+      ctx.fill();
     }
 
     ctx.restore();
@@ -4169,26 +4225,31 @@ class AsaichiGame {
       ctx.restore();
     });
 
-    // パーティクル
-    this.particles.forEach(p => {
+    // パーティクル（外側で1度だけsave/restoreし、Canvasコンテキストの負荷を極小化！）
+    if (this.particles.length > 0) {
       ctx.save();
-      ctx.globalAlpha = Math.max(0, p.alpha);
-      if (p.type === 'sweat') {
-        ctx.font = '16px sans-serif';
-        ctx.textAlign = 'center';
-        ctx.fillText('💦', p.x, p.y);
-      } else if (p.type === 'exclamation') {
-        ctx.font = 'bold 18px sans-serif';
-        ctx.textAlign = 'center';
-        ctx.fillText('❗', p.x, p.y);
-      } else {
-        ctx.fillStyle = p.color || '#fbbf24';
-        ctx.beginPath();
-        ctx.arc(p.x, p.y, p.size, 0, Math.PI * 2);
-        ctx.fill();
+      for (let i = 0; i < this.particles.length; i++) {
+        const p = this.particles[i];
+        const a = (typeof p.alpha === 'number' && !isNaN(p.alpha)) ? Math.max(0, Math.min(1, p.alpha)) : 0;
+        if (a <= 0) continue;
+        ctx.globalAlpha = a;
+        if (p.type === 'sweat') {
+          ctx.font = '16px sans-serif';
+          ctx.textAlign = 'center';
+          ctx.fillText('💦', p.x, p.y);
+        } else if (p.type === 'exclamation') {
+          ctx.font = 'bold 18px sans-serif';
+          ctx.textAlign = 'center';
+          ctx.fillText('❗', p.x, p.y);
+        } else {
+          ctx.fillStyle = p.color || '#fbbf24';
+          ctx.beginPath();
+          ctx.arc(p.x, p.y, p.size || 3, 0, Math.PI * 2);
+          ctx.fill();
+        }
       }
       ctx.restore();
-    });
+    }
 
 
   }
@@ -4399,18 +4460,22 @@ class AsaichiGame {
   }
 
   addParticle(x, y, type) {
+    if (this.particles.length >= 60) return; // パーティクル最大数制限（軽量化・メモリ保護）
+
     let vy = (Math.random() - 0.5) * 2;
     if (type === 'smoke') vy = -1.4 - Math.random();
     if (type === 'sweat' || type === 'exclamation') vy = -1.6 - Math.random() * 0.8;
+    if (type === 'splash') vy = -1.2 - Math.random() * 1.5;
 
     this.particles.push({
       x, y,
       type,
-      vx: (Math.random() - 0.5) * (type === 'confetti' ? 4 : 1.2),
+      vx: (Math.random() - 0.5) * (type === 'confetti' ? 4 : type === 'splash' ? 3 : 1.2),
       vy,
-      size: type === 'smoke' ? 6 : 3,
+      size: type === 'smoke' ? 6 : type === 'splash' ? 4 : 3,
       alpha: 1.0,
       color: type === 'confetti' ? ['#fbbf24', '#38bdf8', '#ef4444', '#10b981'][Math.floor(Math.random()*4)] :
+             type === 'splash' ? '#38bdf8' :
              type === 'spark' ? '#fde047' : '#94a3b8'
     });
   }
@@ -4420,12 +4485,15 @@ class AsaichiGame {
       const p = this.particles[i];
       p.x += p.vx;
       p.y += p.vy;
-      p.alpha -= dt * 2.2;
-      if (p.alpha <= 0) this.particles.splice(i, 1);
+      p.alpha = (typeof p.alpha === 'number' && !isNaN(p.alpha)) ? p.alpha - dt * 2.2 : 0;
+      if (p.alpha <= 0) {
+        this.particles.splice(i, 1);
+      }
     }
   }
 
   addDamageNumber(x, y, text, color = '#f8fafc') {
+    if (this.damageNumbers.length >= 30) return; // ダメージ数字最大数制限
     this.damageNumbers.push({
       x: x + (Math.random() - 0.5) * 14,
       y,

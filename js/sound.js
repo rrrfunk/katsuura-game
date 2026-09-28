@@ -351,6 +351,10 @@ class SoundSystem {
   }
 
   // 9. ★ミケの鳴き声・威嚇咆哮（ユーザー提供のリアル猫ちゃん音声「ミャオ〜〜ン！」「ニャ〜〜オ！」）
+  playMeow() {
+    this.playMeowRoar();
+  }
+
   playMeowRoar() {
     if (!this.soundEnabled) return;
     this.init();
