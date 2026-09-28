@@ -28,6 +28,8 @@ class AsaichiGame {
     this.images = {
       mapHorizontal: new Image(),
       mapPeace: new Image(),
+      mapForeground: new Image(),
+      mapForegroundPeace: new Image(),
       splashYankee: new Image(),
       splashKyon: new Image(),
       cutinCat: new Image(),
@@ -153,9 +155,11 @@ class AsaichiGame {
     let loaded = 0;
     const cacheKey = Date.now();
     const list = [
-      { img: this.images.mapHorizontal, src: `assets/map_horizontal.jpg?v=${cacheKey}` },
-      { img: this.images.mapPeace,      src: `assets/map_peace.jpg?v=${cacheKey}` },
-      { img: this.images.splashYankee,  src: `assets/splash_yankee.jpg?v=${cacheKey}` },
+      { img: this.images.mapHorizontal,      src: `assets/map_horizontal.jpg?v=${cacheKey}` },
+      { img: this.images.mapPeace,           src: `assets/map_peace.jpg?v=${cacheKey}` },
+      { img: this.images.mapForeground,      src: `assets/map_foreground.png?v=${cacheKey}` },
+      { img: this.images.mapForegroundPeace, src: `assets/map_foreground_peace.png?v=${cacheKey}` },
+      { img: this.images.splashYankee,       src: `assets/splash_yankee.jpg?v=${cacheKey}` },
       { img: this.images.splashKyon,    src: `assets/splash_kyon.jpg?v=${cacheKey}` },
       { img: this.images.cutinCat,      src: `assets/cutin_cat.jpg?v=${cacheKey}` },
       { img: this.images.cutinYankee,   src: `assets/cutin_yankee.jpg?v=${cacheKey}` },
@@ -218,7 +222,7 @@ class AsaichiGame {
     }
   }
 
-  // コライダー設定（ユーザー指定の赤枠に忠実な正確な立入禁止エリア）
+  // コライダー設定（鳥居左茂み完全立入禁止＆白テント屋台正確判定＆手前回り込み構造）
   initColliders() {
     this.colliders = [
       // 1. 外周境界壁（画面外へのすり抜け防止）
@@ -227,32 +231,33 @@ class AsaichiGame {
       { x: 0, y: 0, w: 15, h: 768 },
       { x: 1361, y: 0, w: 15, h: 768 },
 
-      // 2. 北町屋の屋根・建物本体（y: 0〜350のみ！軒下の通りは歩ける）
-      { x: 0, y: 0, w: 520, h: 350 },    // 北町屋・左側
-      { x: 840, y: 0, w: 536, h: 350 },  // 北町屋・右側
+      // 2. 北町屋の屋根・建物本体（y: 0〜350のみ！軒下の通り y: 350〜410 は歩ける）
+      { x: 0, y: 0, w: 400, h: 350 },     // 北町屋・左側
+      { x: 840, y: 0, w: 536, h: 350 },   // 北町屋・右側
 
-      // 3. 遠見岬神社（石段奥の雛壇のみ！鳥居前石畳は歩ける）
-      { x: 620, y: 0, w: 155, h: 460 },  // 雛人形の赤いひな壇＆奥の森
+      // 3. 遠見岬神社（石段奥の雛壇 & 鳥居左右の茂み・木・玉垣・石灯籠）
+      { x: 600, y: 0, w: 180, h: 450 },   // 雛人形の赤いひな壇＆奥の石段
+      { x: 400, y: 0, w: 140, h: 420 },   // 鳥居左の茂み・木・玉垣・石灯籠（★ユーザー指摘箇所：完全立ち入り禁止！★）
+      { x: 780, y: 0, w: 60, h: 420 },    // 鳥居右の茂み・木・玉垣・石灯籠
+      { x: 540, y: 450, w: 50, h: 80 },   // 鳥居左柱
+      { x: 785, y: 450, w: 50, h: 80 },   // 鳥居右柱
 
-      // 4. 鳥居の左右の柱 ＆ 石灯籠
-      { x: 520, y: 460, w: 50, h: 80 },  // 鳥居左柱
-      { x: 785, y: 460, w: 50, h: 80 },  // 鳥居右柱
-      { x: 825, y: 410, w: 40, h: 65 },  // 石灯籠
+      // 4. 左側中段（テラス席、SPICE COFFEE自転車ワゴン、白テント朝市惣菜屋台）
+      { x: 0, y: 410, w: 235, h: 130 },   // テラス傘席（オレンジ＆青白傘）
+      { x: 235, y: 475, w: 145, h: 55 },  // SPICE COFFEE看板
+      { x: 190, y: 515, w: 200, h: 100 }, // 自転車ワゴン本体（車輪接地線 y: 615まで）
+      { x: 380, y: 575, w: 40, h: 65 },   // ワゴン前看板
+      { x: 350, y: 410, w: 170, h: 155 }, // 白テント屋台本体（おばちゃん・商品台・テント！ミケ突き抜け完全防止）
+      { x: 440, y: 565, w: 45, h: 65 },   // 白テント前黒板看板
 
-      // 5. 左側中段：ユーザー画像2の【3つの独立した赤枠】
-      // 枠A: テラス傘席（オレンジ傘＆青白傘）
-      { x: 0, y: 430, w: 235, h: 90 },
-      // 枠B: 白い屋根の朝市惣菜屋台（白テント・おばちゃん・前の黒板看板）
-      { x: 285, y: 410, w: 115, h: 170 },
-      // 枠C: 写真客・自転車・三輪ワゴン
-      { x: 40, y: 490, w: 245, h: 90 },
+      // 5. 右側中段（魚トロ箱ICE、青白干物棚、紺色テント八百屋、野菜木箱棚）
+      // 八百屋とおばちゃんの足元 y: 585 まで！大通りの道幅を確保
+      { x: 845, y: 410, w: 531, h: 175 },
 
-      // 6. 右側中段：ユーザー画像1の【中段屋台群一体ブロック】
-      { x: 855, y: 410, w: 521, h: 220 }, // 魚トロ箱ICE、青白干物棚、紺色テント、八百屋、野菜木箱
-
-      // 7. 南側（手前側）屋台群（y: 700〜768の足元のみ！大通りは広々歩ける）
-      { x: 0, y: 700, w: 570, h: 68 },   // 南左客席（七輪・パラソル席・客群）
-      { x: 630, y: 700, w: 746, h: 68 }  // 南右屋台（南干物台・魚箱・屋台・野菜台）
+      // 6. 南側（手前オブジェクト足元：ミケや敵が人やパラソルの後ろ y: 600〜665 を回り込める！）
+      { x: 0, y: 665, w: 440, h: 103 },   // 南左客席・テーブル・パラソルの足元
+      { x: 645, y: 660, w: 731, h: 108 }  // 南右屋台・干物台・魚箱の足元
+      // ※中央石畳通路（x: 440〜645）は画面最下端（y: 755まで）完全に通過可能！
     ];
   }
 
@@ -869,12 +874,6 @@ class AsaichiGame {
     if (p.speedBuffTimer > 0) p.speedBuffTimer -= dt;
     if (p.shieldBuffTimer > 0) p.shieldBuffTimer -= dt;
     if (p.scratchAnimTimer > 0) p.scratchAnimTimer -= dt; // ひっかき攻撃モーションタイマー
-
-    // 猫缶パッシブHPリジェネ（適正な微量回復でスリルを維持）
-    if (this.skills.can.level > 0) {
-      const regen = this.skills.can.level * 0.4 * dt;
-      p.hp = Math.min(p.maxHp, p.hp + regen);
-    }
 
     // ノックバック処理
     if (p.knockbackTimer > 0) {
@@ -2250,9 +2249,8 @@ class AsaichiGame {
       this.addComicPopup(p.x, p.y - 30, '☕ カフェイン加速！', '#38bdf8');
       this.triggerTandemBikeRush();
     } else if (item.type === 'warabi') {
-      // 🍡 南蛮屋わらび餅：HP回復はわずか+3（ほんの気持ち程度）！助太刀ネコ出撃 ＋ 接触防御シールド！
-      this.sound.playHeal();
-      p.hp = Math.min(p.maxHp, p.hp + 3); // わずか+3のみ（過剰回復を防止）
+      // 🍡 南蛮屋わらび餅：HP回復完全ゼロ！助太刀ネコ参上 ＋ 接触防御シールドに特化！
+      this.sound.playMeow();
       p.shieldBuffTimer = 3.5; // 3.5秒間シールド展開（敵接触を弾く）
       for (let s = 0; s < 8; s++) this.addParticle(p.x, p.y, 'confetti');
       this.addComicPopup(p.x, p.y - 30, '🍡 助太刀ネコ参上！', '#10b981');
@@ -2456,14 +2454,11 @@ class AsaichiGame {
       });
 
     } else if (cat.type === 'shiro') {
-      // 神使シロ：瞬時に全体天罰落雷＆スタン、プレイヤーHP全快
+      // 神使シロ：瞬時に全体天罰落雷＆スタン（HP回復なし・純粋な殲滅援護攻撃に特化！）
       if (!cat.heavensFired) {
         cat.heavensFired = true;
-        this.sound.playLevelUp();
+        this.sound.playTaiko();
         this.screenShake = 0.32;
-
-        this.player.hp = Math.min(this.player.maxHp, this.player.hp + 40);
-        this.addDamageNumber(this.player.x, this.player.y - 25, '+40 HP', '#38bdf8');
 
         this.enemies.forEach(e => {
           this.damageEnemy(e, 150);
@@ -2547,7 +2542,6 @@ class AsaichiGame {
       apply: (game) => {
         game.skills.spice.level = (game.skills.spice.level || 0) + 1;
         p.maxHp += 20;
-        p.hp = Math.min(p.maxHp, p.hp + 30);
       }
     };
 
@@ -2636,6 +2630,9 @@ class AsaichiGame {
 
     // E. パーティクル＆ダメージ数字
     this.renderEffects(ctx);
+
+    // F. 手前オブジェクト前景オーバーレイ（手前の人・パラソル・屋台の後ろにミケや敵が回り込む立体描写！）
+    this.renderForeground(ctx);
 
     ctx.restore();
 
@@ -2957,6 +2954,19 @@ class AsaichiGame {
     } else {
       ctx.fillStyle = '#1e293b';
       ctx.fillRect(0, 0, this.worldW, this.worldH);
+    }
+  }
+
+  // 手前オブジェクト前景描画（人やパラソル・屋台を透過オーバーレイ描画し、後ろを歩く演出を実現！）
+  renderForeground(ctx) {
+    const isPeaceMode = !this.firstYankeeEventDone;
+    const fgImg = isPeaceMode
+      ? (this.images.mapForegroundPeace && this.images.mapForegroundPeace.complete && this.images.mapForegroundPeace.naturalWidth > 0 ? this.images.mapForegroundPeace : this.images.mapForeground)
+      : (this.images.mapForeground && this.images.mapForeground.complete && this.images.mapForeground.naturalWidth > 0 ? this.images.mapForeground : this.images.mapForegroundPeace);
+
+    if (fgImg && fgImg.complete && fgImg.naturalWidth > 0) {
+      ctx.imageSmoothingEnabled = false;
+      ctx.drawImage(fgImg, 0, 0, this.worldW, this.worldH);
     }
   }
 
