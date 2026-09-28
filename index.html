@@ -2,9 +2,9 @@
 <html lang="ja">
 <head>
   <meta charset="UTF-8">
-  <meta name="viewport" content="width=device-width, initial-scale=1.0, user-scalable=no">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0, maximum-scale=1.0, user-scalable=no, viewport-fit=cover">
   <title>ニャンと多忙な勝浦朝市！〜おつかい猫のヤンキー大乱闘〜 【SFC超美麗版】</title>
-  <link rel="stylesheet" href="style.css?v=20260927_forbidden_zones">
+  <link rel="stylesheet" href="style.css?v=20260928_landscape_opt">
 </head>
 <body>
   <div id="game-container">
@@ -178,9 +178,16 @@
     </div>
   </div>
 
+  <!-- 縦持ちスマホ向け：横向き回転推奨オーバーレイ -->
+  <div id="orientation-prompt">
+    <div class="rotate-device-icon">📱</div>
+    <div class="rotate-title">画面を横向きにしてニャ！</div>
+    <div class="rotate-desc">スマホを横持ちに回転すると大迫力の全画面で快適に遊べるニャ！</div>
+  </div>
+
   <!-- 分割スクリプト群（サウンド、定数、ゲーム本体） -->
-  <script src="js/sound.js?v=20260928_fix_all"></script>
-  <script src="js/constants.js?v=20260928_fix_all"></script>
-  <script src="js/game.js?v=20260928_fix_all"></script>
+  <script src="js/sound.js?v=20260928_mobile_landscape_opt"></script>
+  <script src="js/constants.js?v=20260928_mobile_landscape_opt"></script>
+  <script src="js/game.js?v=20260928_mobile_landscape_opt"></script>
 </body>
 </html>

@@ -212,14 +212,6 @@ const SKILL_DEFS = {
     maxLevel: 5,
     getDesc: (lv) => `アイテム吸引範囲 +${lv * 45}px！`
   },
-  can: {
-    id: 'can',
-    name: '頑丈な極上猫缶',
-    icon: '🥫',
-    desc: '最大HPが増加し、HPが自動回復する！',
-    maxLevel: 5,
-    getDesc: (lv) => `最大HP +${lv * 25}、毎秒リジェネ +${lv * 1.5}！`
-  },
   spice: {
     id: 'spice',
     name: 'SPICEドリップ',

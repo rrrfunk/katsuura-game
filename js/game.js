@@ -99,7 +99,6 @@ class AsaichiGame {
       shichirin:{ level: 0, timer: 0 },
       boots:    { level: 0 },
       magnet:   { level: 0 },
-      can:      { level: 0 },
       spice:    { level: 0 }
     };
 
@@ -437,6 +436,57 @@ class AsaichiGame {
     });
 
     // ========================================================
+    // スマホ用：画面どこでもタッチ＆ドラッグ移動
+    // ========================================================
+    const updateTouchPos = (touch) => {
+      const rect = this.canvas.getBoundingClientRect();
+      const scaleX = this.canvas.width / rect.width;
+      const scaleY = this.canvas.height / rect.height;
+      this.mouseInput.x = (touch.clientX - rect.left) * scaleX;
+      this.mouseInput.y = (touch.clientY - rect.top) * scaleY;
+    };
+
+    let directTouchId = null;
+
+    this.canvas.addEventListener('touchstart', (e) => {
+      if (this.state === 'PLAYING') {
+        const touch = e.changedTouches[0];
+        directTouchId = touch.identifier;
+        updateTouchPos(touch);
+        this.mouseInput.isDown = true;
+        this.mouseInput.active = true;
+      }
+    }, { passive: true });
+
+    this.canvas.addEventListener('touchmove', (e) => {
+      if (this.state === 'PLAYING' && directTouchId !== null) {
+        for (let i = 0; i < e.changedTouches.length; i++) {
+          const touch = e.changedTouches[i];
+          if (touch.identifier === directTouchId) {
+            updateTouchPos(touch);
+            this.mouseInput.isDown = true;
+            this.mouseInput.active = true;
+            break;
+          }
+        }
+      }
+    }, { passive: true });
+
+    const handleDirectTouchEnd = (e) => {
+      for (let i = 0; i < e.changedTouches.length; i++) {
+        if (e.changedTouches[i].identifier === directTouchId) {
+          directTouchId = null;
+          this.mouseInput.isDown = false;
+          this.mouseInput.active = false;
+          break;
+        }
+      }
+    };
+
+    this.canvas.addEventListener('touchend', handleDirectTouchEnd);
+    this.canvas.addEventListener('touchcancel', handleDirectTouchEnd);
+
+    // ========================================================
     // スマホ用：右下バーチャルジョイスティック（グリグリ操作）
     // ========================================================
     const joyZone = document.getElementById('joystick-zone');
@@ -597,7 +647,6 @@ class AsaichiGame {
       shichirin:{ level: 0, timer: 0 },
       boots:    { level: 0 },
       magnet:   { level: 0 },
-      can:      { level: 0 },
       spice:    { level: 0 },
       lightning: null
     };
