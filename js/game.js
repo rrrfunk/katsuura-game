@@ -48,6 +48,7 @@ class AsaichiGame {
     this.tandemRushes = []; // 走行中のタンデムバイクリスト
     this.mikoshiRushes = []; // 走行中の勝浦神輿軍団リスト
     this.assistCutin = null; // お助けキャラ格ゲー風必殺技カットイン状態
+    this.assistCutinSeen = { tandem: false, mikoshi: false, noraneko: false }; // 各アイテム初回取得時のみカットイン発動
     this.kittens = []; // ミケについてくる子猫リスト
     this.lightningTimer = 0; // 電撃タイマー
     this.levelUpBanner = null; // レベルアップ自動通知バナー
@@ -802,6 +803,7 @@ class AsaichiGame {
     this.screenShake = 0;
     this.bossSpawned1 = false;
     this.bossSpawned2 = false;
+    this.assistCutinSeen = { tandem: false, mikoshi: false, noraneko: false }; // 新規プレイで各初回カットインをリセット
 
     // プレイヤー初期化
     this.player.x = 660;
@@ -1080,11 +1082,12 @@ class AsaichiGame {
       return;
     }
 
-    // お助けキャラカットイン演出中（格ゲー必殺技風・大迫力カットイン）
+    // お助けキャラカットイン演出中（ユーザーがクリック/タップするまでじっくり表示）
     if (this.assistCutin) {
       this.assistCutin.timer += dt;
       if (this.assistCutin.lockoutTimer > 0) this.assistCutin.lockoutTimer -= dt;
-      if (this.assistCutin.timer >= this.assistCutin.maxTimer) {
+      // 放置対策セーフティ（30秒放置された場合の安全弁）
+      if (this.assistCutin.timer >= 30.0) {
         this.endAssistCutin();
       }
       this.updateCamera();
@@ -2562,18 +2565,36 @@ class AsaichiGame {
     const p = this.player;
 
     if (item.type === 'coffee') {
-      // ☕ SPICE COFFEE（アイスコーヒー）：HP回復なし！移動速度1.3倍加速バフ ＋ タンデム自転車突進！
+      // ☕ SPICE COFFEE（アイスコーヒー）：移動速度1.3倍加速バフ ＋ タンデム自転車突進！
       p.speedBuffTimer = 4.5; // 4.5秒間ダッシュ！
       for (let s = 0; s < 8; s++) this.addParticle(p.x, p.y, 'smoke');
-      this.triggerAssistCutin('tandem', 'あ！タンデムライダーだにゃ！！');
+      if (!this.assistCutinSeen.tandem) {
+        this.assistCutinSeen.tandem = true;
+        this.triggerAssistCutin('tandem', 'あ！タンデムライダーだにゃ！！');
+      } else {
+        this.sound.playBicycleBell();
+        this.triggerTandemBikeRush();
+      }
     } else if (item.type === 'warabi') {
       p.shieldBuffTimer = 3.5; // 3.5秒間シールド展開（敵接触を弾く）
       for (let s = 0; s < 8; s++) this.addParticle(p.x, p.y, 'confetti');
-      this.triggerAssistCutin('noraneko', 'あ！ノラネコだにゃー！');
+      if (!this.assistCutinSeen.noraneko) {
+        this.assistCutinSeen.noraneko = true;
+        this.triggerAssistCutin('noraneko', 'あ！ノラネコだにゃー！');
+      } else {
+        this.sound.playCatHiss();
+        this.spawnAllyCat();
+      }
     } else if (item.type === 'tantan') {
       for (let s = 0; s < 16; s++) this.addParticle(p.x, p.y, 'spark');
       for (let s = 0; s < 8; s++) this.addParticle(p.x, p.y, 'smoke');
-      this.triggerAssistCutin('mikoshi', 'あ！お神輿だにゃー！！');
+      if (!this.assistCutinSeen.mikoshi) {
+        this.assistCutinSeen.mikoshi = true;
+        this.triggerAssistCutin('mikoshi', 'あ！お神輿だにゃー！！');
+      } else {
+        this.sound.playMikoshiSound();
+        this.triggerMikoshiRush(2);
+      }
     }
   }
 
@@ -3275,13 +3296,9 @@ class AsaichiGame {
 
     ctx.save();
 
-    // 1. 全体暗転オーバーレイ
-    let overlayAlpha = 0.80;
-    if (p < 0.08) {
-      overlayAlpha = (p / 0.08) * 0.80;
-    } else if (p > 0.88) {
-      overlayAlpha = ((1.0 - p) / 0.12) * 0.80;
-    }
+    // 1. 全体暗転オーバーレイ（登場時のみスムーズにフェードイン）
+    const enterDuration = 0.12;
+    const overlayAlpha = t < enterDuration ? (t / enterDuration) * 0.82 : 0.82;
     ctx.fillStyle = `rgba(0, 0, 0, ${overlayAlpha})`;
     ctx.fillRect(0, 0, viewW, viewH);
 
@@ -3296,24 +3313,25 @@ class AsaichiGame {
     if (hasCustomImg) {
       // ========================================================
       // パターンA: ユーザー提供の超美麗・文字入り必殺技カットイン画面
-      // （16:9 全画面フルサイズ描画！「お助けキャラ登場！」もミケのセリフも100%全景表示）
+      // （16:9 全画面フルサイズ描画！クリック/タップで閉じるまでじっくり表示）
       // ========================================================
-      let slideX = 0;
       let zoom = 1.0;
-      if (p < 0.09) {
-        const enterP = p / 0.09;
+      if (t < enterDuration) {
+        const enterP = t / enterDuration;
         zoom = 1.15 - enterP * 0.15; // 1.15 -> 1.0 へ衝撃ズームイン
-      } else if (p > 0.88) {
-        const exitP = (p - 0.88) / 0.12;
-        slideX = -Math.sin(exitP * Math.PI * 0.5) * (viewW * 1.15); // 左側へ超高速スライドアウト
       }
 
-      // 微小なシェイク（迫力アップ）
-      const shakeX = Math.sin(t * 45) * 1.5;
-      const shakeY = Math.cos(t * 35) * 1.0;
+      // 登場直後のインパクトシェイク（0.35秒で安定）
+      let shakeX = 0;
+      let shakeY = 0;
+      if (t < 0.35) {
+        const shakeDecay = (0.35 - t) / 0.35;
+        shakeX = Math.sin(t * 50) * 3.0 * shakeDecay;
+        shakeY = Math.cos(t * 40) * 2.0 * shakeDecay;
+      }
 
       ctx.save();
-      ctx.translate(viewW / 2 + slideX + shakeX, viewH / 2 + shakeY);
+      ctx.translate(viewW / 2 + shakeX, viewH / 2 + shakeY);
       ctx.scale(zoom, zoom);
 
       // 画像描画（16:9比率を崩さず全画面フィット）
@@ -3347,12 +3365,9 @@ class AsaichiGame {
       const angle = -0.12; // 約 -6.9度
 
       let slideOffsetX = 0;
-      if (p < 0.12) {
-        const enterP = p / 0.12;
-        slideOffsetX = (1.0 - Math.sin(enterP * Math.PI * 0.5)) * (viewW * 0.7);
-      } else if (p > 0.88) {
-        const exitP = (p - 0.88) / 0.12;
-        slideOffsetX = -Math.sin(exitP * Math.PI * 0.5) * (viewW * 0.8);
+      if (t < enterDuration) {
+        const enterP = t / enterDuration;
+        slideOffsetX = (1.0 - Math.sin(enterP * Math.PI * 0.5)) * (viewW * 0.6);
       }
 
       ctx.save();
@@ -3417,7 +3432,7 @@ class AsaichiGame {
       ctx.restore();
 
       // フォールバックキャラ描画
-      const charZoom = 1.0 + p * 0.08;
+      const charZoom = 1.0;
       const charX = slitW * 0.10;
       const charY = 0;
       ctx.save();
@@ -3587,22 +3602,43 @@ class AsaichiGame {
       ctx.restore();
     }
 
-    // 3. スキップ案内（画像があってもなくても、右下に小さく点滅表示）
+    // 3. クリック/タップで閉じる（出撃）ボタンUI（点滅案内）
     if (cutin.lockoutTimer <= 0) {
-      const blinkAlpha = 0.6 + Math.sin(t * 10) * 0.4;
+      const blink = 0.8 + Math.sin(t * 8) * 0.2;
+      const btnW = 360;
+      const btnH = 46;
+      const btnX = (viewW - btnW) / 2;
+      const btnY = viewH - 58;
+
       ctx.save();
-      ctx.font = 'bold 12px sans-serif';
-      ctx.fillStyle = `rgba(255, 255, 255, ${blinkAlpha})`;
+      // 半透明グラデーション背景
+      const btnBg = ctx.createLinearGradient(btnX, btnY, btnX, btnY + btnH);
+      btnBg.addColorStop(0, 'rgba(15, 23, 42, 0.92)');
+      btnBg.addColorStop(1, 'rgba(30, 41, 59, 0.95)');
+      ctx.fillStyle = btnBg;
+      ctx.strokeStyle = `rgba(245, 158, 11, ${blink})`;
+      ctx.lineWidth = 2.5;
+      ctx.shadowColor = '#f59e0b';
+      ctx.shadowBlur = 14 * blink;
+      ctx.beginPath();
+      ctx.roundRect(btnX, btnY, btnW, btnH, 23);
+      ctx.fill();
+      ctx.stroke();
+
+      // ボタン内テキスト
+      ctx.font = 'bold 16px sans-serif';
+      ctx.textAlign = 'center';
+      ctx.textBaseline = 'middle';
+      ctx.fillStyle = '#fef08a';
       ctx.shadowColor = '#000000';
-      ctx.shadowBlur = 4;
-      ctx.textAlign = 'right';
-      ctx.fillText('[ 画面タップ / SPACE で即スキップ ]', viewW - 20, viewH - 16);
+      ctx.shadowBlur = 6;
+      ctx.fillText('⚡ 画面クリック / タップで出撃！ ▶', viewW / 2, btnY + btnH / 2);
       ctx.restore();
     }
 
     // 4. 開始時の白閃光フラッシュ（必殺技炸裂の衝撃）
-    if (p < 0.08) {
-      const flashAlpha = (1.0 - p / 0.08) * 0.55;
+    if (t < 0.10) {
+      const flashAlpha = (1.0 - t / 0.10) * 0.55;
       ctx.fillStyle = `rgba(255, 255, 255, ${flashAlpha})`;
       ctx.fillRect(0, 0, viewW, viewH);
     }
