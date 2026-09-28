@@ -1,0 +1,22 @@
+{
+  "name": "勝浦朝市サバイバー！",
+  "short_name": "朝市サバイバー",
+  "description": "ニャンと多忙な勝浦朝市！〜おつかい猫のヤンキー大乱闘〜 SFC超美麗ドット絵アクション",
+  "start_url": "./index.html",
+  "display": "fullscreen",
+  "orientation": "landscape",
+  "background_color": "#080c10",
+  "theme_color": "#080c10",
+  "icons": [
+    {
+      "src": "assets/cutin_cat.jpg",
+      "sizes": "192x192",
+      "type": "image/jpeg"
+    },
+    {
+      "src": "assets/cutin_cat.jpg",
+      "sizes": "512x512",
+      "type": "image/jpeg"
+    }
+  ]
+}

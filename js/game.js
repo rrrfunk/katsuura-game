@@ -230,28 +230,28 @@ class AsaichiGame {
       { x: 0, y: 0, w: 15, h: 768 },
       { x: 1361, y: 0, w: 15, h: 768 },
 
-      // 2. 北町屋の屋根・建物本体（y: 0〜350のみ！軒下の通り y: 350〜410 は歩ける）
-      { x: 0, y: 0, w: 400, h: 350 },     // 北町屋・左側
-      { x: 840, y: 0, w: 536, h: 350 },   // 北町屋・右側
+      // 2. 北町屋の屋根・建物本体（y: 0〜340のみ！軒下の通り y: 340〜410 は歩ける）
+      { x: 0, y: 0, w: 400, h: 340 },     // 北町屋・左側
+      { x: 840, y: 0, w: 536, h: 340 },   // 北町屋・右側
 
       // 3. 遠見岬神社（石段奥の雛壇 & 鳥居左右の茂み・木・玉垣・石灯籠）
-      { x: 600, y: 0, w: 180, h: 450 },   // 雛人形の赤いひな壇＆奥の石段
-      { x: 400, y: 0, w: 140, h: 420 },   // 鳥居左の茂み・木・玉垣・石灯籠（★ユーザー指摘箇所：完全立ち入り禁止！★）
-      { x: 780, y: 0, w: 60, h: 420 },    // 鳥居右の茂み・木・玉垣・石灯籠
-      { x: 540, y: 450, w: 50, h: 80 },   // 鳥居左柱
-      { x: 785, y: 450, w: 50, h: 80 },   // 鳥居右柱
+      { x: 590, y: 0, w: 200, h: 350 },   // 雛人形の赤いひな壇（最下段 y: 350まで！鳥居下 y: 350〜450 の参道石畳は完全開通！）
+      { x: 400, y: 0, w: 140, h: 420 },   // 鳥居左の茂み・木・玉垣・石灯籠（★完全立ち入り禁止★）
+      { x: 780, y: 0, w: 70, h: 420 },    // 鳥居右の茂み・木・玉垣・石灯籠
+      { x: 540, y: 440, w: 50, h: 80 },   // 鳥居左柱
+      { x: 785, y: 440, w: 50, h: 80 },   // 鳥居右柱
 
       // 4. 左側中段（テラス席、SPICE COFFEE自転車ワゴン、白テント朝市惣菜屋台、A型看板）
-      { x: 0, y: 410, w: 235, h: 130 },   // テラス傘席（オレンジ＆青白傘）
-      { x: 235, y: 475, w: 145, h: 55 },  // SPICE COFFEE看板
+      { x: 0, y: 400, w: 225, h: 140 },   // テラス傘席（オレンジ＆青白傘）
+      { x: 235, y: 380, w: 100, h: 60 },  // SPICE COFFEE看板（奥の壁際 y: 380〜440！手前石畳は歩ける）
       { x: 200, y: 465, w: 235, h: 100 }, // 自転車ワゴン本体（木製台〜車輪接地面 y: 565まで！下側は完全に歩ける）
       { x: 395, y: 350, w: 135, h: 90 },  // 白テント屋台本体（おばちゃん・商品台）
       { x: 440, y: 520, w: 55, h: 50 },   // A型黒板看板「Nutif」（脚の接地面 y: 570まで！y>570の赤丸通路は完全開通！）
       { x: 515, y: 395, w: 45, h: 65 },   // 緑の黒板看板「Frisette」
 
       // 5. 右側中段（魚トロ箱ICE、青白干物棚、紺色テント八百屋、野菜木箱棚）
-      // 八百屋とおばちゃんの足元 y: 585 まで！大通りの道幅を確保
-      { x: 845, y: 410, w: 531, h: 175 },
+      // 魚トロ箱の実位置 x: 880 から！鳥居右側（x: 835〜880）の石畳通路を完全開通！
+      { x: 880, y: 350, w: 496, h: 220 },
 
       // 6. 南側（手前オブジェクト足元：ミケや敵が人やパラソルの後ろ y: 600〜665 を回り込める！）
       { x: 0, y: 665, w: 440, h: 103 },   // 南左客席・テーブル・パラソルの足元
@@ -341,15 +341,30 @@ class AsaichiGame {
     });
 
     // ========================================================
-    // 全画面表示（フルスクリーン）制御
+    // 全画面表示（フルスクリーン）制御（iOS Safari & Android両対応）
     // ========================================================
-    const toggleFullscreen = () => {
+    const isFullscreenActive = () => {
       const doc = document;
-      const isFs = !!(doc.fullscreenElement || doc.webkitFullscreenElement || doc.mozFullScreenElement || doc.msFullscreenElement);
+      const apiFs = !!(doc.fullscreenElement || doc.webkitFullscreenElement || doc.mozFullScreenElement || doc.msFullscreenElement);
+      const pseudoFs = document.body.classList.contains('pseudo-fullscreen');
+      return apiFs || pseudoFs;
+    };
+
+    const updateFsButtons = () => {
+      const isFs = isFullscreenActive();
       const fsBtn = document.getElementById('fullscreen-btn');
       const titleFsBtn = document.getElementById('title-fullscreen-btn');
+      const label = isFs ? '✖ 縮小' : '⛶ 全画面';
+      if (fsBtn) fsBtn.textContent = label;
+      if (titleFsBtn) titleFsBtn.textContent = label;
+    };
+
+    const toggleFullscreen = () => {
+      const isFs = isFullscreenActive();
+      const doc = document;
 
       if (!isFs) {
+        // 全画面起動を試みる
         const el = document.documentElement;
         const req = el.requestFullscreen || el.webkitRequestFullscreen || el.mozRequestFullScreen || el.msRequestFullscreen;
         if (req) {
@@ -357,41 +372,48 @@ class AsaichiGame {
             const p = req.call(el);
             if (p && p.then) {
               p.then(() => {
-                if (fsBtn) fsBtn.textContent = '✖ 縮小';
-                if (titleFsBtn) titleFsBtn.textContent = '✖ 縮小';
-              }).catch((err) => console.log('Fullscreen rejected:', err));
+                updateFsButtons();
+                if (window.screen && window.screen.orientation && window.screen.orientation.lock) {
+                  window.screen.orientation.lock('landscape').catch(() => {});
+                }
+              }).catch(() => {
+                // iOS Safari等でAPI拒否 ➜ 擬似全画面クラスで画面全体をカバー
+                document.body.classList.add('pseudo-fullscreen');
+                updateFsButtons();
+              });
+            } else {
+              document.body.classList.add('pseudo-fullscreen');
+              updateFsButtons();
             }
           } catch (err) {
-            console.log('Fullscreen error:', err);
+            document.body.classList.add('pseudo-fullscreen');
+            updateFsButtons();
           }
+        } else {
+          document.body.classList.add('pseudo-fullscreen');
+          updateFsButtons();
         }
-        // iOS Safari等でURLバーを隠すためのスクロールトリガー
-        try { window.scrollTo(0, 1); } catch (e) {}
+
+        // スマホのアドレスバー畳み
+        try {
+          window.scrollTo(0, 0);
+          setTimeout(() => window.scrollTo(0, 1), 100);
+          setTimeout(() => window.scrollTo(0, 0), 250);
+        } catch (e) {}
       } else {
+        // 全画面解除
+        document.body.classList.remove('pseudo-fullscreen');
         const exit = doc.exitFullscreen || doc.webkitExitFullscreen || doc.mozCancelFullScreen || doc.msExitFullscreen;
         if (exit) {
           try {
             const p = exit.call(doc);
             if (p && p.then) {
-              p.then(() => {
-                if (fsBtn) fsBtn.textContent = '⛶ 全画面';
-                if (titleFsBtn) titleFsBtn.textContent = '⛶ 全画面';
-              }).catch((err) => console.log('Exit fullscreen error:', err));
+              p.then(updateFsButtons).catch(() => {});
             }
-          } catch (err) {
-            console.log('Exit fullscreen error:', err);
-          }
+          } catch (err) {}
         }
+        updateFsButtons();
       }
-    };
-
-    const updateFsButtons = () => {
-      const isFs = !!(document.fullscreenElement || document.webkitFullscreenElement || document.mozFullScreenElement || document.msFullscreenElement);
-      const fsBtn = document.getElementById('fullscreen-btn');
-      const titleFsBtn = document.getElementById('title-fullscreen-btn');
-      const label = isFs ? '✖ 縮小' : '⛶ 全画面';
-      if (fsBtn) fsBtn.textContent = label;
-      if (titleFsBtn) titleFsBtn.textContent = label;
     };
 
     document.addEventListener('fullscreenchange', updateFsButtons);
@@ -400,18 +422,22 @@ class AsaichiGame {
     document.addEventListener('MSFullscreenChange', updateFsButtons);
 
     const tryAutoFullscreen = () => {
-      const isFs = !!(document.fullscreenElement || document.webkitFullscreenElement || document.mozFullScreenElement || document.msFullscreenElement);
-      if (!isFs) {
-        const el = document.documentElement;
-        const req = el.requestFullscreen || el.webkitRequestFullscreen || el.mozRequestFullScreen || el.msRequestFullscreen;
-        if (req) {
-          try {
-            const p = req.call(el);
-            if (p && p.catch) p.catch(() => {});
-          } catch (e) {}
-        }
-        try { window.scrollTo(0, 1); } catch (e) {}
+      const el = document.documentElement;
+      const req = el.requestFullscreen || el.webkitRequestFullscreen || el.mozRequestFullScreen || el.msRequestFullscreen;
+      if (req) {
+        try {
+          const p = req.call(el);
+          if (p && p.catch) p.catch(() => {});
+        } catch (e) {}
       }
+      if (window.screen && window.screen.orientation && window.screen.orientation.lock) {
+        window.screen.orientation.lock('landscape').catch(() => {});
+      }
+      try {
+        window.scrollTo(0, 0);
+        setTimeout(() => window.scrollTo(0, 1), 100);
+        setTimeout(() => window.scrollTo(0, 0), 250);
+      } catch (e) {}
     };
 
     // UIボタン＆タイトル画面タップ
@@ -509,7 +535,7 @@ class AsaichiGame {
     });
 
     // ========================================================
-    // スマホ用：画面どこでもタッチ＆ドラッグ移動
+    // スマホ用：画面どこでもタッチ＆ドラッグ移動（スクロール誤爆防止でノンストップ操作！）
     // ========================================================
     const updateTouchPos = (touch) => {
       const rect = this.canvas.getBoundingClientRect();
@@ -523,27 +549,31 @@ class AsaichiGame {
 
     this.canvas.addEventListener('touchstart', (e) => {
       if (this.state === 'PLAYING') {
+        e.preventDefault();
         const touch = e.changedTouches[0];
         directTouchId = touch.identifier;
         updateTouchPos(touch);
         this.mouseInput.isDown = true;
         this.mouseInput.active = true;
       }
-    }, { passive: true });
+    }, { passive: false });
 
     this.canvas.addEventListener('touchmove', (e) => {
-      if (this.state === 'PLAYING' && directTouchId !== null) {
-        for (let i = 0; i < e.changedTouches.length; i++) {
-          const touch = e.changedTouches[i];
-          if (touch.identifier === directTouchId) {
-            updateTouchPos(touch);
-            this.mouseInput.isDown = true;
-            this.mouseInput.active = true;
-            break;
+      if (this.state === 'PLAYING') {
+        e.preventDefault();
+        if (directTouchId !== null) {
+          for (let i = 0; i < e.changedTouches.length; i++) {
+            const touch = e.changedTouches[i];
+            if (touch.identifier === directTouchId) {
+              updateTouchPos(touch);
+              this.mouseInput.isDown = true;
+              this.mouseInput.active = true;
+              break;
+            }
           }
         }
       }
-    }, { passive: true });
+    }, { passive: false });
 
     const handleDirectTouchEnd = (e) => {
       for (let i = 0; i < e.changedTouches.length; i++) {
@@ -556,8 +586,8 @@ class AsaichiGame {
       }
     };
 
-    this.canvas.addEventListener('touchend', handleDirectTouchEnd);
-    this.canvas.addEventListener('touchcancel', handleDirectTouchEnd);
+    this.canvas.addEventListener('touchend', handleDirectTouchEnd, { passive: false });
+    this.canvas.addEventListener('touchcancel', handleDirectTouchEnd, { passive: false });
 
     // ========================================================
     // スマホ用：右下バーチャルジョイスティック（グリグリ操作）
@@ -664,13 +694,18 @@ class AsaichiGame {
       });
     }
 
-    // メインループ起動
+    // メインループ起動（例外発生時も決して止まらない完全ノンストップループ）
     let lastTime = performance.now();
     const loop = (now) => {
-      const dt = Math.min(0.08, (now - lastTime) / 1000);
+      const rawDt = (now - lastTime) / 1000;
+      const dt = (!rawDt || isNaN(rawDt) || rawDt <= 0) ? 0.016 : Math.min(0.08, rawDt);
       lastTime = now;
-      this.update(dt);
-      this.render();
+      try {
+        this.update(dt);
+        this.render();
+      } catch (err) {
+        console.error('Frame update error caught safely:', err);
+      }
       requestAnimationFrame(loop);
     };
     requestAnimationFrame(loop);
