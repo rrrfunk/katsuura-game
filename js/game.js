@@ -35,6 +35,9 @@ class AsaichiGame {
       cutinCat: new Image(),
       cutinYankee: new Image(),
       cutinKyon: new Image(),
+      cutinTandem: new Image(),
+      cutinMikoshi: new Image(),
+      cutinNoraneko: new Image(),
       tandemBike: new Image(),
       mikoshi: new Image(),
       cat: new Image(),
@@ -44,6 +47,7 @@ class AsaichiGame {
     this.tandemBikeCanvas = null; // 黒背景を透明化したCanvasキャッシュ
     this.tandemRushes = []; // 走行中のタンデムバイクリスト
     this.mikoshiRushes = []; // 走行中の勝浦神輿軍団リスト
+    this.assistCutin = null; // お助けキャラ格ゲー風必殺技カットイン状態
     this.kittens = []; // ミケについてくる子猫リスト
     this.lightningTimer = 0; // 電撃タイマー
     this.levelUpBanner = null; // レベルアップ自動通知バナー
@@ -163,6 +167,9 @@ class AsaichiGame {
       { img: this.images.cutinCat,      src: `assets/cutin_cat.jpg?v=${cacheKey}` },
       { img: this.images.cutinYankee,   src: `assets/cutin_yankee.jpg?v=${cacheKey}` },
       { img: this.images.cutinKyon,     src: `assets/cutin_kyon.jpg?v=${cacheKey}` },
+      { img: this.images.cutinTandem,   src: `assets/cutin_tandem.jpg?v=${cacheKey}` },
+      { img: this.images.cutinMikoshi,  src: `assets/cutin_mikoshi.jpg?v=${cacheKey}` },
+      { img: this.images.cutinNoraneko, src: `assets/cutin_noraneko.jpg?v=${cacheKey}` },
       { img: this.images.tandemBike,    src: `assets/tandem_bike.png?v=${cacheKey}` },
       { img: this.images.mikoshi,       src: `assets/katsuura_mikoshi.png?v=${cacheKey}` },
       { img: this.images.cat,           src: `assets/cat_sprites.png?v=${cacheKey}` },
@@ -317,6 +324,14 @@ class AsaichiGame {
         if (e.code === 'Space' || e.code === 'Enter') {
           e.preventDefault();
           this.endEventCutin();
+          return;
+        }
+      }
+
+      if (this.assistCutin && this.assistCutin.lockoutTimer <= 0) {
+        if (e.code === 'Space' || e.code === 'Enter') {
+          e.preventDefault();
+          this.endAssistCutin();
           return;
         }
       }
@@ -556,6 +571,12 @@ class AsaichiGame {
     });
 
     this.canvas.addEventListener('mousedown', (e) => {
+      if (this.assistCutin) {
+        if (this.assistCutin.lockoutTimer <= 0) {
+          this.endAssistCutin();
+        }
+        return;
+      }
       if (this.eventState !== 'NONE') {
         if (this.eventLockoutTimer <= 0) {
           this.endEventCutin();
@@ -593,6 +614,13 @@ class AsaichiGame {
     let directTouchId = null;
 
     this.canvas.addEventListener('touchstart', (e) => {
+      if (this.assistCutin) {
+        e.preventDefault();
+        if (this.assistCutin.lockoutTimer <= 0) {
+          this.endAssistCutin();
+        }
+        return;
+      }
       if (this.eventState !== 'NONE') {
         e.preventDefault();
         if (this.eventLockoutTimer <= 0) {
@@ -894,9 +922,10 @@ class AsaichiGame {
     this.eventTimer = 0;
     this.eventLockoutTimer = 0.5; // 最初の0.5秒は誤タップ防止
 
-    // ★メリハリ演出：平和BGMをストップし、ドラクエ風戦闘エンカウント音を大迫力で再生！
+    // ★メリハリ演出：平和BGMをストップし、ドラクエ風戦闘エンカウント音 ＋ 即座に戦闘BGMを大迫力で再生！
     this.sound.stopPeaceBGM();
     this.sound.playYankeeEncounter();
+    this.sound.startBattleBGM();
     this.screenShake = 0.5;
   }
 
@@ -930,6 +959,40 @@ class AsaichiGame {
     } else if (prevState === 'KYON') {
       this.screenShake = 0.35;
       this.showLevelUpBanner('🦌 野生のキョンが乱入！', 'すばしっこいキョンに気をつけろ！');
+    }
+  }
+
+  // ========================================================
+  // 格闘ゲーム必殺技風・お助けキャラカットイン演出
+  // ========================================================
+  triggerAssistCutin(type, speechText) {
+    this.assistCutin = {
+      type, // 'tandem' | 'mikoshi' | 'noraneko'
+      title: 'お助けキャラ登場！',
+      speech: speechText,
+      timer: 0,
+      maxTimer: 1.4, // 約1.4秒のダイナミック必殺技演出
+      lockoutTimer: 0.25 // 誤タップ防止
+    };
+    this.sound.playTaiko();
+    if (typeof this.sound.playMeowRoar === 'function') {
+      this.sound.playMeowRoar();
+    }
+    this.screenShake = 0.45;
+  }
+
+  endAssistCutin() {
+    if (!this.assistCutin) return;
+    const type = this.assistCutin.type;
+    this.assistCutin = null;
+
+    // カットイン終了時にド派手突進アクションがスタート！
+    if (type === 'tandem') {
+      this.triggerTandemBikeRush();
+    } else if (type === 'mikoshi') {
+      this.triggerMikoshiRush(2);
+    } else if (type === 'noraneko') {
+      this.spawnAllyCat();
     }
   }
 
@@ -1016,6 +1079,17 @@ class AsaichiGame {
         this.endEventCutin();
       }
       // イベント中は敵の動きや攻撃、タイマーを一時停止して演出に集中
+      this.updateCamera();
+      return;
+    }
+
+    // お助けキャラカットイン演出中（格ゲー必殺技風・大迫力カットイン）
+    if (this.assistCutin) {
+      this.assistCutin.timer += dt;
+      if (this.assistCutin.lockoutTimer > 0) this.assistCutin.lockoutTimer -= dt;
+      if (this.assistCutin.timer >= this.assistCutin.maxTimer) {
+        this.endAssistCutin();
+      }
       this.updateCamera();
       return;
     }
@@ -2494,21 +2568,15 @@ class AsaichiGame {
       // ☕ SPICE COFFEE（アイスコーヒー）：HP回復なし！移動速度1.3倍加速バフ ＋ タンデム自転車突進！
       p.speedBuffTimer = 4.5; // 4.5秒間ダッシュ！
       for (let s = 0; s < 8; s++) this.addParticle(p.x, p.y, 'smoke');
-      this.addComicPopup(p.x, p.y - 30, '☕ カフェイン加速！', '#38bdf8');
-      this.triggerTandemBikeRush();
+      this.triggerAssistCutin('tandem', 'あ！タンデムライダーだにゃ！！');
     } else if (item.type === 'warabi') {
-      if (typeof this.sound.playMeow === 'function') this.sound.playMeow();
-      else if (typeof this.sound.playMeowRoar === 'function') this.sound.playMeowRoar();
       p.shieldBuffTimer = 3.5; // 3.5秒間シールド展開（敵接触を弾く）
       for (let s = 0; s < 8; s++) this.addParticle(p.x, p.y, 'confetti');
-      this.addComicPopup(p.x, p.y - 30, '🍡 助太刀ネコ参上！', '#10b981');
-      this.spawnAllyCat();
+      this.triggerAssistCutin('noraneko', 'あ！ノラネコだにゃー！');
     } else if (item.type === 'tantan') {
-      // 🍜 勝浦タンタン麺：HP回復ゼロ！勝浦神輿軍団の大突進（敵一網打尽）に特化！
-      this.sound.playTaiko();
       for (let s = 0; s < 16; s++) this.addParticle(p.x, p.y, 'spark');
       for (let s = 0; s < 8; s++) this.addParticle(p.x, p.y, 'smoke');
-      this.triggerMikoshiRush(2); // 神輿2基の迫力編隊大突進！
+      this.triggerAssistCutin('mikoshi', 'あ！お神輿だにゃー！！');
     }
   }
 
@@ -2894,6 +2962,11 @@ class AsaichiGame {
 
     // I. 初回エンカウントイベント演出カットイン
     this.renderEventCutin(ctx);
+
+    // J. 格ゲー必殺技風・お助けキャラカットイン演出
+    if (this.assistCutin) {
+      this.renderAssistCutin(ctx);
+    }
   }
 
   // ストリートファイター6風「HERE COMES A NEW CHALLENGER!」対戦乱入カットイン演出！
@@ -3185,6 +3258,338 @@ class AsaichiGame {
       ctx.textAlign = 'center';
       ctx.fillText('[ TAP / SPACEキー ]', btnX + btnW / 2, btnY + btnH + 11);
       ctx.textAlign = 'left';
+    }
+
+    ctx.restore();
+  }
+
+  // ========================================================
+  // 格闘ゲーム必殺技風・お助けキャラカットイン演出（斜めスリット・集中線・大迫力）
+  // ========================================================
+  renderAssistCutin(ctx) {
+    if (!this.assistCutin) return;
+
+    const cutin = this.assistCutin;
+    const viewW = this.viewW;
+    const viewH = this.viewH;
+    const t = cutin.timer;
+    const maxT = cutin.maxTimer;
+    const p = Math.min(1.0, t / maxT);
+
+    ctx.save();
+
+    // 1. 全体暗転オーバーレイ（映画風レターボックス）
+    let overlayAlpha = 0.72;
+    if (p < 0.1) {
+      overlayAlpha = (p / 0.1) * 0.72;
+    } else if (p > 0.88) {
+      overlayAlpha = ((1.0 - p) / 0.12) * 0.72;
+    }
+    ctx.fillStyle = `rgba(0, 0, 0, ${overlayAlpha})`;
+    ctx.fillRect(0, 0, viewW, viewH);
+
+    // 2. スリット帯の位置と変形（斜め -7度カット）
+    const centerX = viewW / 2;
+    const centerY = viewH / 2;
+    const slitHeight = 310;
+    const angle = -0.12; // 約 -6.9度
+
+    // In / Out のスライド量（超高速インパクト）
+    let slideOffsetX = 0;
+    if (p < 0.12) {
+      const enterP = p / 0.12;
+      slideOffsetX = (1.0 - Math.sin(enterP * Math.PI * 0.5)) * (viewW * 0.7);
+    } else if (p > 0.88) {
+      const exitP = (p - 0.88) / 0.12;
+      slideOffsetX = -Math.sin(exitP * Math.PI * 0.5) * (viewW * 0.8);
+    }
+
+    ctx.save();
+    ctx.translate(centerX + slideOffsetX, centerY);
+    ctx.rotate(angle);
+
+    // スリット帯のクリッピング領域
+    const slitW = viewW * 1.6;
+    const slitHalfH = slitHeight / 2;
+
+    ctx.beginPath();
+    ctx.rect(-slitW / 2, -slitHalfH, slitW, slitHeight);
+    ctx.save();
+    ctx.clip();
+
+    // A. スリット帯の背景（ディープグラデーション）
+    const bgGrad = ctx.createLinearGradient(-slitW / 2, -slitHalfH, slitW / 2, slitHalfH);
+    if (cutin.type === 'tandem') {
+      bgGrad.addColorStop(0, '#1e1b4b');
+      bgGrad.addColorStop(0.5, '#431407');
+      bgGrad.addColorStop(1, '#7c2d12');
+    } else if (cutin.type === 'mikoshi') {
+      bgGrad.addColorStop(0, '#311042');
+      bgGrad.addColorStop(0.5, '#78350f');
+      bgGrad.addColorStop(1, '#9a3412');
+    } else {
+      bgGrad.addColorStop(0, '#0f172a');
+      bgGrad.addColorStop(0.5, '#1e293b');
+      bgGrad.addColorStop(1, '#0f766e');
+    }
+    ctx.fillStyle = bgGrad;
+    ctx.fillRect(-slitW / 2, -slitHalfH, slitW, slitHeight);
+
+    // B. 格ゲー風スピード集中線（斜めストライプ＆稲妻光）
+    const animOffset = (t * 600) % 80;
+    ctx.lineWidth = 4;
+    for (let lx = -slitW / 2 - 100; lx < slitW / 2 + 100; lx += 40) {
+      const lineX = lx + animOffset;
+      const alpha = 0.08 + Math.abs(Math.sin((lx + t * 200) * 0.02)) * 0.12;
+      ctx.strokeStyle = `rgba(255, 255, 255, ${alpha})`;
+      ctx.beginPath();
+      ctx.moveTo(lineX, -slitHalfH);
+      ctx.lineTo(lineX + 90, slitHalfH);
+      ctx.stroke();
+    }
+
+    // C. 放射状インパクト集中線（画面中央右寄りのキャラクターから激しく放射）
+    const burstOriginX = slitW * 0.15;
+    const burstOriginY = 0;
+    ctx.save();
+    ctx.fillStyle = 'rgba(255, 255, 255, 0.06)';
+    const rayCount = 18;
+    const rayAngleBase = (t * 2.0) % (Math.PI * 2);
+    for (let r = 0; r < rayCount; r++) {
+      const ra = rayAngleBase + (r / rayCount) * Math.PI * 2;
+      ctx.beginPath();
+      ctx.moveTo(burstOriginX, burstOriginY);
+      ctx.lineTo(burstOriginX + Math.cos(ra) * 900, burstOriginY + Math.sin(ra) * 500);
+      ctx.lineTo(burstOriginX + Math.cos(ra + 0.08) * 900, burstOriginY + Math.sin(ra + 0.08) * 500);
+      ctx.closePath();
+      ctx.fill();
+    }
+    ctx.restore();
+
+    // D. お助けキャラクターイラスト描画（右側〜中央）
+    let targetCutinImg = null;
+    if (cutin.type === 'tandem') targetCutinImg = this.images.cutinTandem;
+    else if (cutin.type === 'mikoshi') targetCutinImg = this.images.cutinMikoshi;
+    else if (cutin.type === 'noraneko') targetCutinImg = this.images.cutinNoraneko;
+
+    const charZoom = 1.0 + p * 0.08;
+    const charX = slitW * 0.10;
+    const charY = 0;
+
+    if (targetCutinImg && targetCutinImg.complete && targetCutinImg.naturalWidth > 0) {
+      // ユーザーが生成した専用カットイン立ち絵がある場合
+      const imgW = slitHeight * 1.6 * charZoom;
+      const imgH = slitHeight * 1.05 * charZoom;
+      ctx.save();
+      // 微小な揺動
+      const jiggle = Math.sin(t * 30) * 2.5;
+      ctx.drawImage(targetCutinImg, charX - imgW / 2 + jiggle, charY - imgH / 2, imgW, imgH);
+      ctx.restore();
+    } else {
+      // 専用画像読み込み前／未配置時の超豪華フォールバック描画！
+      ctx.save();
+      ctx.translate(charX, charY);
+      ctx.scale(charZoom, charZoom);
+
+      if (cutin.type === 'tandem') {
+        // タンデムクロスバイクフォールバック
+        if (this.images.tandemBike && this.images.tandemBike.complete && this.images.tandemBike.naturalWidth > 0) {
+          const bw = 240;
+          const bh = 135;
+          ctx.drawImage(this.images.tandemBike, -bw / 2, -bh / 2, bw, bh);
+        } else {
+          ctx.font = 'bold 70px sans-serif';
+          ctx.textAlign = 'center';
+          ctx.textBaseline = 'middle';
+          ctx.fillText('🚴💨 60代タンデムライダー！', 0, 0);
+        }
+      } else if (cutin.type === 'mikoshi') {
+        // 勝浦神輿フォールバック
+        if (this.images.mikoshi && this.images.mikoshi.complete && this.images.mikoshi.naturalWidth > 0) {
+          const mw = 220;
+          const mh = 220;
+          ctx.drawImage(this.images.mikoshi, -mw / 2, -mh / 2, mw, mh);
+        } else {
+          ctx.font = 'bold 70px sans-serif';
+          ctx.textAlign = 'center';
+          ctx.textBaseline = 'middle';
+          ctx.fillText('🏮 勝浦神輿軍団！！ 🏮', 0, 0);
+        }
+      } else {
+        // 助太刀ノラネコフォールバック
+        if (this.images.cat && this.images.cat.complete) {
+          ctx.imageSmoothingEnabled = false;
+          const cell = 256;
+          // Row 1（凛々しい歩行ポーズ）を大迫力表示
+          ctx.drawImage(this.images.cat, cell, 0, cell, cell, -90, -90, 180, 180);
+        } else {
+          ctx.font = 'bold 70px sans-serif';
+          ctx.textAlign = 'center';
+          ctx.textBaseline = 'middle';
+          ctx.fillText('🐾 助太刀ノラネコ！！', 0, 0);
+        }
+      }
+      ctx.restore();
+    }
+
+    ctx.restore(); // clip 終了
+
+    // 3. スリット帯の上下ゴールドボーダーライン（光彩エフェクト）
+    ctx.save();
+    const borderGrad = ctx.createLinearGradient(-slitW / 2, 0, slitW / 2, 0);
+    borderGrad.addColorStop(0, 'rgba(234, 179, 8, 0.2)');
+    borderGrad.addColorStop(0.2, '#fef08a');
+    borderGrad.addColorStop(0.5, '#f59e0b');
+    borderGrad.addColorStop(0.8, '#fef08a');
+    borderGrad.addColorStop(1, 'rgba(234, 179, 8, 0.2)');
+
+    ctx.strokeStyle = borderGrad;
+    ctx.lineWidth = 4.5;
+    ctx.shadowColor = '#f59e0b';
+    ctx.shadowBlur = 14;
+
+    // 上枠線
+    ctx.beginPath();
+    ctx.moveTo(-slitW / 2, -slitHalfH);
+    ctx.lineTo(slitW / 2, -slitHalfH);
+    ctx.stroke();
+
+    // 下枠線
+    ctx.beginPath();
+    ctx.moveTo(-slitW / 2, slitHalfH);
+    ctx.lineTo(slitW / 2, slitHalfH);
+    ctx.stroke();
+    ctx.restore();
+
+    ctx.restore(); // rotate(angle) 終了
+
+    // ========================================================
+    // 4. 水平UIレイヤー（画面の正立座標系で読みやすく配置）
+    // ========================================================
+
+    // A. 上部タイトルプレート：「⚡ お助けキャラ登場！ ⚡」
+    const bannerW = 380;
+    const bannerH = 46;
+    const bannerX = (viewW - bannerW) / 2;
+    const bannerY = 48;
+
+    // プレート背景
+    ctx.save();
+    const titleGrad = ctx.createLinearGradient(bannerX, bannerY, bannerX, bannerY + bannerH);
+    titleGrad.addColorStop(0, '#fef08a');
+    titleGrad.addColorStop(0.4, '#f59e0b');
+    titleGrad.addColorStop(1, '#b45309');
+
+    ctx.fillStyle = 'rgba(15, 23, 42, 0.95)';
+    ctx.strokeStyle = titleGrad;
+    ctx.lineWidth = 3;
+    ctx.shadowColor = '#f59e0b';
+    ctx.shadowBlur = 18;
+    ctx.beginPath();
+    ctx.roundRect(bannerX, bannerY, bannerW, bannerH, 8);
+    ctx.fill();
+    ctx.stroke();
+    ctx.restore();
+
+    // タイトル文字
+    ctx.save();
+    ctx.font = 'italic 900 24px "Impact", "Arial Black", sans-serif';
+    ctx.textAlign = 'center';
+    ctx.textBaseline = 'middle';
+    ctx.fillStyle = '#ffffff';
+    ctx.strokeStyle = '#000000';
+    ctx.lineWidth = 4;
+    ctx.strokeText('⚡ ' + cutin.title + ' ⚡', viewW / 2, bannerY + bannerH / 2);
+    ctx.fillText('⚡ ' + cutin.title + ' ⚡', viewW / 2, bannerY + bannerH / 2);
+    ctx.restore();
+
+    // B. 左下：ミケのポートレートアイコン ＋ セリフ枠
+    const boxX = 35;
+    const boxY = viewH - 125;
+    const boxW = viewW - 70;
+    const boxH = 92;
+
+    // セリフボックス背景
+    ctx.save();
+    ctx.fillStyle = 'rgba(15, 23, 42, 0.92)';
+    ctx.strokeStyle = '#e2e8f0';
+    ctx.lineWidth = 2.5;
+    ctx.shadowColor = 'rgba(0, 0, 0, 0.8)';
+    ctx.shadowBlur = 12;
+    ctx.beginPath();
+    ctx.roundRect(boxX, boxY, boxW, boxH, 10);
+    ctx.fill();
+    ctx.stroke();
+    ctx.restore();
+
+    // ミケの顔アイコン（修正済み・耳見切れのない正面おすわりミケ！）
+    const mikeIconSize = 68;
+    const mikeX = boxX + 12;
+    const mikeY = boxY + 12;
+
+    ctx.save();
+    ctx.fillStyle = '#0f172a';
+    ctx.strokeStyle = '#f59e0b';
+    ctx.lineWidth = 2;
+    ctx.beginPath();
+    ctx.roundRect(mikeX, mikeY, mikeIconSize, mikeIconSize, 8);
+    ctx.fill();
+    ctx.stroke();
+    ctx.clip();
+
+    if (this.images.cutinCat && this.images.cutinCat.complete && this.images.cutinCat.naturalWidth > 0) {
+      ctx.drawImage(this.images.cutinCat, 0, 0, this.images.cutinCat.naturalWidth, this.images.cutinCat.naturalHeight, mikeX, mikeY, mikeIconSize, mikeIconSize);
+    } else if (this.images.cat && this.images.cat.complete) {
+      ctx.imageSmoothingEnabled = false;
+      const cell = 256;
+      // Row 2（正面おすわりミケ・修正済み）を描画
+      ctx.drawImage(this.images.cat, 0, cell * 2, cell, cell, mikeX, mikeY, mikeIconSize, mikeIconSize);
+    }
+    ctx.restore();
+
+    // ミケのネームプレート
+    const textStartX = mikeX + mikeIconSize + 16;
+    ctx.save();
+    ctx.fillStyle = '#fbbf24';
+    ctx.font = 'bold 13px sans-serif';
+    ctx.fillText('🐾 看板三毛猫 ミケ', textStartX, boxY + 24);
+
+    // ミケの指定セリフ
+    ctx.font = 'bold 22px sans-serif';
+    ctx.fillStyle = '#ffffff';
+    ctx.strokeStyle = '#000000';
+    ctx.lineWidth = 3.5;
+    ctx.strokeText(cutin.speech, textStartX, boxY + 56);
+    ctx.fillText(cutin.speech, textStartX, boxY + 56);
+
+    // サブ説明文（効果の告知）
+    let effectDesc = '強烈なタンデムアタックで敵を一網打尽にするニャ！';
+    if (cutin.type === 'mikoshi') {
+      effectDesc = '勝浦の熱気あふれる神輿が敵を豪快に吹き飛ばすニャ！';
+    } else if (cutin.type === 'noraneko') {
+      effectDesc = '心強い仲間猫が一緒に戦ってくれるニャ！';
+    }
+    ctx.font = '12px sans-serif';
+    ctx.fillStyle = '#cbd5e1';
+    ctx.fillText(effectDesc, textStartX, boxY + 76);
+    ctx.restore();
+
+    // C. スキップ案内（右下に小さく点滅）
+    if (cutin.lockoutTimer <= 0) {
+      const blinkAlpha = 0.5 + Math.sin(t * 10) * 0.4;
+      ctx.save();
+      ctx.font = 'bold 11px sans-serif';
+      ctx.fillStyle = `rgba(255, 255, 255, ${blinkAlpha})`;
+      ctx.textAlign = 'right';
+      ctx.fillText('[ 画面タップ / SPACE で即スキップ ]', boxX + boxW - 12, boxY + boxH - 10);
+      ctx.restore();
+    }
+
+    // 5. 開始時の白フラッシュ（必殺技炸裂の衝撃）
+    if (p < 0.08) {
+      const flashAlpha = (1.0 - p / 0.08) * 0.45;
+      ctx.fillStyle = `rgba(255, 255, 255, ${flashAlpha})`;
+      ctx.fillRect(0, 0, viewW, viewH);
     }
 
     ctx.restore();
