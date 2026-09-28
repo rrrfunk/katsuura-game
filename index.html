@@ -3,8 +3,12 @@
 <head>
   <meta charset="UTF-8">
   <meta name="viewport" content="width=device-width, initial-scale=1.0, maximum-scale=1.0, user-scalable=no, viewport-fit=cover">
+  <meta name="apple-mobile-web-app-capable" content="yes">
+  <meta name="apple-mobile-web-app-status-bar-style" content="black-translucent">
+  <meta name="mobile-web-app-capable" content="yes">
+  <meta name="theme-color" content="#080c10">
   <title>ニャンと多忙な勝浦朝市！〜おつかい猫のヤンキー大乱闘〜 【SFC超美麗版】</title>
-  <link rel="stylesheet" href="style.css?v=20260928_landscape_opt">
+  <link rel="stylesheet" href="style.css?v=20260928_fullscreen_opt">
 </head>
 <body>
   <div id="game-container">
@@ -46,6 +50,7 @@
         </div>
         <button id="help-btn" class="ui-btn" title="操作説明">❓ 説明</button>
         <button id="sound-btn" class="ui-btn" title="BGM/効果音 ON/OFF">🔊 BGM ON</button>
+        <button id="fullscreen-btn" class="ui-btn" title="全画面表示切り替え">⛶ 全画面</button>
       </div>
     </header>
 
@@ -55,6 +60,7 @@
 
       <!-- 1. タイトル画面（ChatGPT生成の超美麗1枚絵全面＋STARTボタン連動ヒットボックス） -->
       <div id="title-overlay" class="overlay title-screen" style="background: url('assets/title_bg.jpg?v=20260908_gpt_final') center center / cover no-repeat !important; cursor: pointer;">
+        <button id="title-fullscreen-btn" class="title-fs-btn" title="全画面表示切り替え">⛶ 全画面</button>
         <button id="btn-quick-start" class="sfc-start-hitbox" title="START 出撃！"></button>
       </div>
 
@@ -188,6 +194,6 @@
   <!-- 分割スクリプト群（サウンド、定数、ゲーム本体） -->
   <script src="js/sound.js?v=20260928_mobile_landscape_opt"></script>
   <script src="js/constants.js?v=20260928_mobile_landscape_opt"></script>
-  <script src="js/game.js?v=20260928_mobile_landscape_opt"></script>
+  <script src="js/game.js?v=20260928_fullscreen_opt"></script>
 </body>
 </html>

@@ -353,13 +353,105 @@ class AsaichiGame {
       }
     });
 
+    // ========================================================
+    // 全画面表示（フルスクリーン）制御
+    // ========================================================
+    const toggleFullscreen = () => {
+      const doc = document;
+      const isFs = !!(doc.fullscreenElement || doc.webkitFullscreenElement || doc.mozFullScreenElement || doc.msFullscreenElement);
+      const fsBtn = document.getElementById('fullscreen-btn');
+      const titleFsBtn = document.getElementById('title-fullscreen-btn');
+
+      if (!isFs) {
+        const el = document.documentElement;
+        const req = el.requestFullscreen || el.webkitRequestFullscreen || el.mozRequestFullScreen || el.msRequestFullscreen;
+        if (req) {
+          try {
+            const p = req.call(el);
+            if (p && p.then) {
+              p.then(() => {
+                if (fsBtn) fsBtn.textContent = '✖ 縮小';
+                if (titleFsBtn) titleFsBtn.textContent = '✖ 縮小';
+              }).catch((err) => console.log('Fullscreen rejected:', err));
+            }
+          } catch (err) {
+            console.log('Fullscreen error:', err);
+          }
+        }
+        // iOS Safari等でURLバーを隠すためのスクロールトリガー
+        try { window.scrollTo(0, 1); } catch (e) {}
+      } else {
+        const exit = doc.exitFullscreen || doc.webkitExitFullscreen || doc.mozCancelFullScreen || doc.msExitFullscreen;
+        if (exit) {
+          try {
+            const p = exit.call(doc);
+            if (p && p.then) {
+              p.then(() => {
+                if (fsBtn) fsBtn.textContent = '⛶ 全画面';
+                if (titleFsBtn) titleFsBtn.textContent = '⛶ 全画面';
+              }).catch((err) => console.log('Exit fullscreen error:', err));
+            }
+          } catch (err) {
+            console.log('Exit fullscreen error:', err);
+          }
+        }
+      }
+    };
+
+    const updateFsButtons = () => {
+      const isFs = !!(document.fullscreenElement || document.webkitFullscreenElement || document.mozFullScreenElement || document.msFullscreenElement);
+      const fsBtn = document.getElementById('fullscreen-btn');
+      const titleFsBtn = document.getElementById('title-fullscreen-btn');
+      const label = isFs ? '✖ 縮小' : '⛶ 全画面';
+      if (fsBtn) fsBtn.textContent = label;
+      if (titleFsBtn) titleFsBtn.textContent = label;
+    };
+
+    document.addEventListener('fullscreenchange', updateFsButtons);
+    document.addEventListener('webkitfullscreenchange', updateFsButtons);
+    document.addEventListener('mozfullscreenchange', updateFsButtons);
+    document.addEventListener('MSFullscreenChange', updateFsButtons);
+
+    const tryAutoFullscreen = () => {
+      const isFs = !!(document.fullscreenElement || document.webkitFullscreenElement || document.mozFullScreenElement || document.msFullscreenElement);
+      if (!isFs) {
+        const el = document.documentElement;
+        const req = el.requestFullscreen || el.webkitRequestFullscreen || el.mozRequestFullScreen || el.msRequestFullscreen;
+        if (req) {
+          try {
+            const p = req.call(el);
+            if (p && p.catch) p.catch(() => {});
+          } catch (e) {}
+        }
+        try { window.scrollTo(0, 1); } catch (e) {}
+      }
+    };
+
     // UIボタン＆タイトル画面タップ
+    const fsBtn = document.getElementById('fullscreen-btn');
+    if (fsBtn) {
+      fsBtn.addEventListener('click', (e) => {
+        e.stopPropagation();
+        toggleFullscreen();
+      });
+    }
+
+    const titleFsBtn = document.getElementById('title-fullscreen-btn');
+    if (titleFsBtn) {
+      titleFsBtn.addEventListener('click', (e) => {
+        e.stopPropagation();
+        toggleFullscreen();
+      });
+    }
+
     document.getElementById('btn-quick-start')?.addEventListener('click', (e) => {
       e.stopPropagation();
+      tryAutoFullscreen();
       this.startGame();
     });
     document.getElementById('title-overlay')?.addEventListener('click', (e) => {
       if (this.state === 'TITLE') {
+        tryAutoFullscreen();
         this.startGame();
       }
     });
@@ -371,13 +463,17 @@ class AsaichiGame {
     });
     document.getElementById('btn-tutorial-start')?.addEventListener('click', () => {
       document.getElementById('tutorial-overlay').classList.add('hidden');
-      if (this.state === 'TITLE') this.startGame();
+      if (this.state === 'TITLE') {
+        tryAutoFullscreen();
+        this.startGame();
+      }
     });
     document.getElementById('btn-tutorial-back')?.addEventListener('click', () => {
       document.getElementById('tutorial-overlay').classList.add('hidden');
     });
     document.getElementById('restart-btn')?.addEventListener('click', (e) => {
       e.stopPropagation();
+      tryAutoFullscreen();
       this.startGame();
     });
 
