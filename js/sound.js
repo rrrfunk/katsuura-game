@@ -27,17 +27,20 @@ class SoundSystem {
     this.audioPool = {
       bicycle: new Audio('assets/se_bicycle.mp3'),
       mikoshi: new Audio('assets/se_mikoshi.mp3'),
-      cat: new Audio('assets/se_cat.mp3')
+      cat: new Audio('assets/se_cat.mp3'),
+      assistCutin: new Audio('assets/se_assist_cutin.mp3')
     };
     this.audioPool.bicycle.volume = 0.55;
     this.audioPool.mikoshi.volume = 0.55;
     this.audioPool.cat.volume = 0.65;
+    this.audioPool.assistCutin.volume = 0.75;
 
     // Web Audio API でのゼロ遅延再生用バッファ
     this.customBuffers = {
       bicycle: null,
       mikoshi: null,
-      cat: null
+      cat: null,
+      assistCutin: null
     };
     this.mikoshiActiveSource = null;
   }
@@ -60,7 +63,8 @@ class SoundSystem {
     const files = {
       bicycle: 'assets/se_bicycle.mp3',
       mikoshi: 'assets/se_mikoshi.mp3',
-      cat: 'assets/se_cat.mp3'
+      cat: 'assets/se_cat.mp3',
+      assistCutin: 'assets/se_assist_cutin.mp3'
     };
     for (const [key, path] of Object.entries(files)) {
       try {
@@ -620,6 +624,35 @@ class SoundSystem {
   // 神輿掛け声用エイリアス
   playMikoshiChant() {
     this.playMikoshiSound();
+  }
+
+  // 16. ★お助けキャラ登場時：格闘ゲーム必殺技カットインSE（カキーン！ドゴーン！）
+  playAssistCutinSE() {
+    if (!this.soundEnabled) return;
+    this.init();
+
+    // 1. Web Audio API バッファ再生（ゼロ遅延・高音質）
+    if (this.ctx && this.customBuffers && this.customBuffers.assistCutin) {
+      try {
+        const src = this.ctx.createBufferSource();
+        src.buffer = this.customBuffers.assistCutin;
+        const gain = this.ctx.createGain();
+        gain.gain.value = 0.85;
+        src.connect(gain);
+        gain.connect(this.ctx.destination);
+        src.start(0);
+        return;
+      } catch(e) {}
+    }
+
+    // 2. HTML5 Audio プールでのフォールバック再生
+    if (this.audioPool && this.audioPool.assistCutin) {
+      try {
+        const audio = this.audioPool.assistCutin.cloneNode();
+        audio.volume = 0.85;
+        audio.play().catch(() => {});
+      } catch(e) {}
+    }
   }
 
   // ★平和モードBGM開始（のどかな朝市のWeb Audioレトロチップチューン！）

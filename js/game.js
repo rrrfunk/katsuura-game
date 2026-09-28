@@ -974,10 +974,7 @@ class AsaichiGame {
       maxTimer: 1.4, // 約1.4秒のダイナミック必殺技演出
       lockoutTimer: 0.25 // 誤タップ防止
     };
-    this.sound.playTaiko();
-    if (typeof this.sound.playMeowRoar === 'function') {
-      this.sound.playMeowRoar();
-    }
+    this.sound.playAssistCutinSE();
     this.screenShake = 0.45;
   }
 
@@ -3278,113 +3275,149 @@ class AsaichiGame {
 
     ctx.save();
 
-    // 1. 全体暗転オーバーレイ（映画風レターボックス）
-    let overlayAlpha = 0.72;
-    if (p < 0.1) {
-      overlayAlpha = (p / 0.1) * 0.72;
+    // 1. 全体暗転オーバーレイ
+    let overlayAlpha = 0.80;
+    if (p < 0.08) {
+      overlayAlpha = (p / 0.08) * 0.80;
     } else if (p > 0.88) {
-      overlayAlpha = ((1.0 - p) / 0.12) * 0.72;
+      overlayAlpha = ((1.0 - p) / 0.12) * 0.80;
     }
     ctx.fillStyle = `rgba(0, 0, 0, ${overlayAlpha})`;
     ctx.fillRect(0, 0, viewW, viewH);
 
-    // 2. スリット帯の位置と変形（斜め -7度カット）
-    const centerX = viewW / 2;
-    const centerY = viewH / 2;
-    const slitHeight = 310;
-    const angle = -0.12; // 約 -6.9度
-
-    // In / Out のスライド量（超高速インパクト）
-    let slideOffsetX = 0;
-    if (p < 0.12) {
-      const enterP = p / 0.12;
-      slideOffsetX = (1.0 - Math.sin(enterP * Math.PI * 0.5)) * (viewW * 0.7);
-    } else if (p > 0.88) {
-      const exitP = (p - 0.88) / 0.12;
-      slideOffsetX = -Math.sin(exitP * Math.PI * 0.5) * (viewW * 0.8);
-    }
-
-    ctx.save();
-    ctx.translate(centerX + slideOffsetX, centerY);
-    ctx.rotate(angle);
-
-    // スリット帯のクリッピング領域
-    const slitW = viewW * 1.6;
-    const slitHalfH = slitHeight / 2;
-
-    ctx.beginPath();
-    ctx.rect(-slitW / 2, -slitHalfH, slitW, slitHeight);
-    ctx.save();
-    ctx.clip();
-
-    // A. スリット帯の背景（ディープグラデーション）
-    const bgGrad = ctx.createLinearGradient(-slitW / 2, -slitHalfH, slitW / 2, slitHalfH);
-    if (cutin.type === 'tandem') {
-      bgGrad.addColorStop(0, '#1e1b4b');
-      bgGrad.addColorStop(0.5, '#431407');
-      bgGrad.addColorStop(1, '#7c2d12');
-    } else if (cutin.type === 'mikoshi') {
-      bgGrad.addColorStop(0, '#311042');
-      bgGrad.addColorStop(0.5, '#78350f');
-      bgGrad.addColorStop(1, '#9a3412');
-    } else {
-      bgGrad.addColorStop(0, '#0f172a');
-      bgGrad.addColorStop(0.5, '#1e293b');
-      bgGrad.addColorStop(1, '#0f766e');
-    }
-    ctx.fillStyle = bgGrad;
-    ctx.fillRect(-slitW / 2, -slitHalfH, slitW, slitHeight);
-
-    // B. 格ゲー風スピード集中線（斜めストライプ＆稲妻光）
-    const animOffset = (t * 600) % 80;
-    ctx.lineWidth = 4;
-    for (let lx = -slitW / 2 - 100; lx < slitW / 2 + 100; lx += 40) {
-      const lineX = lx + animOffset;
-      const alpha = 0.08 + Math.abs(Math.sin((lx + t * 200) * 0.02)) * 0.12;
-      ctx.strokeStyle = `rgba(255, 255, 255, ${alpha})`;
-      ctx.beginPath();
-      ctx.moveTo(lineX, -slitHalfH);
-      ctx.lineTo(lineX + 90, slitHalfH);
-      ctx.stroke();
-    }
-
-    // C. 放射状インパクト集中線（画面中央右寄りのキャラクターから激しく放射）
-    const burstOriginX = slitW * 0.15;
-    const burstOriginY = 0;
-    ctx.save();
-    ctx.fillStyle = 'rgba(255, 255, 255, 0.06)';
-    const rayCount = 18;
-    const rayAngleBase = (t * 2.0) % (Math.PI * 2);
-    for (let r = 0; r < rayCount; r++) {
-      const ra = rayAngleBase + (r / rayCount) * Math.PI * 2;
-      ctx.beginPath();
-      ctx.moveTo(burstOriginX, burstOriginY);
-      ctx.lineTo(burstOriginX + Math.cos(ra) * 900, burstOriginY + Math.sin(ra) * 500);
-      ctx.lineTo(burstOriginX + Math.cos(ra + 0.08) * 900, burstOriginY + Math.sin(ra + 0.08) * 500);
-      ctx.closePath();
-      ctx.fill();
-    }
-    ctx.restore();
-
-    // D. お助けキャラクターイラスト描画（右側〜中央）
+    // お助けキャラ画像の判定
     let targetCutinImg = null;
     if (cutin.type === 'tandem') targetCutinImg = this.images.cutinTandem;
     else if (cutin.type === 'mikoshi') targetCutinImg = this.images.cutinMikoshi;
     else if (cutin.type === 'noraneko') targetCutinImg = this.images.cutinNoraneko;
 
     const hasCustomImg = targetCutinImg && targetCutinImg.complete && targetCutinImg.naturalWidth > 0;
-    const charZoom = 1.0 + p * 0.08;
 
     if (hasCustomImg) {
-      // ユーザーが生成した専用カットイン（文字・セリフ入り）がある場合、スリット帯いっぱいに超ド迫力表示！
-      const imgH = slitHeight * 1.12 * charZoom;
-      const imgW = imgH * (targetCutinImg.naturalWidth / targetCutinImg.naturalHeight);
+      // ========================================================
+      // パターンA: ユーザー提供の超美麗・文字入り必殺技カットイン画面
+      // （16:9 全画面フルサイズ描画！「お助けキャラ登場！」もミケのセリフも100%全景表示）
+      // ========================================================
+      let slideX = 0;
+      let zoom = 1.0;
+      if (p < 0.09) {
+        const enterP = p / 0.09;
+        zoom = 1.15 - enterP * 0.15; // 1.15 -> 1.0 へ衝撃ズームイン
+      } else if (p > 0.88) {
+        const exitP = (p - 0.88) / 0.12;
+        slideX = -Math.sin(exitP * Math.PI * 0.5) * (viewW * 1.15); // 左側へ超高速スライドアウト
+      }
+
+      // 微小なシェイク（迫力アップ）
+      const shakeX = Math.sin(t * 45) * 1.5;
+      const shakeY = Math.cos(t * 35) * 1.0;
+
       ctx.save();
-      const jiggle = Math.sin(t * 30) * 2.0;
-      ctx.drawImage(targetCutinImg, -imgW / 2 + jiggle, -imgH / 2, imgW, imgH);
+      ctx.translate(viewW / 2 + slideX + shakeX, viewH / 2 + shakeY);
+      ctx.scale(zoom, zoom);
+
+      // 画像描画（16:9比率を崩さず全画面フィット）
+      ctx.drawImage(targetCutinImg, -viewW / 2, -viewH / 2, viewW, viewH);
       ctx.restore();
+
+      // 上下の格ゲー風ゴールドネオンフレーム（画面をスタイリッシュに引き締める）
+      ctx.save();
+      const goldGrad = ctx.createLinearGradient(0, 0, viewW, 0);
+      goldGrad.addColorStop(0, 'rgba(234, 179, 8, 0)');
+      goldGrad.addColorStop(0.2, '#fef08a');
+      goldGrad.addColorStop(0.5, '#f59e0b');
+      goldGrad.addColorStop(0.8, '#fef08a');
+      goldGrad.addColorStop(1, 'rgba(234, 179, 8, 0)');
+
+      ctx.fillStyle = goldGrad;
+      ctx.shadowColor = '#f59e0b';
+      ctx.shadowBlur = 12;
+      ctx.fillRect(0, 0, viewW, 4);
+      ctx.fillRect(0, viewH - 4, viewW, 4);
+      ctx.restore();
+
     } else {
-      // 専用画像読み込み前／未配置時の超豪華フォールバック描画！
+      // ========================================================
+      // パターンB: 専用画像読み込み前／未配置時のフォールバック
+      // （斜めスリット帯 ＋ Canvas生成タイトルプレート ＋ セリフ枠 ＋ ドット絵）
+      // ========================================================
+      const centerX = viewW / 2;
+      const centerY = viewH / 2;
+      const slitHeight = 310;
+      const angle = -0.12; // 約 -6.9度
+
+      let slideOffsetX = 0;
+      if (p < 0.12) {
+        const enterP = p / 0.12;
+        slideOffsetX = (1.0 - Math.sin(enterP * Math.PI * 0.5)) * (viewW * 0.7);
+      } else if (p > 0.88) {
+        const exitP = (p - 0.88) / 0.12;
+        slideOffsetX = -Math.sin(exitP * Math.PI * 0.5) * (viewW * 0.8);
+      }
+
+      ctx.save();
+      ctx.translate(centerX + slideOffsetX, centerY);
+      ctx.rotate(angle);
+
+      const slitW = viewW * 1.6;
+      const slitHalfH = slitHeight / 2;
+
+      ctx.beginPath();
+      ctx.rect(-slitW / 2, -slitHalfH, slitW, slitHeight);
+      ctx.save();
+      ctx.clip();
+
+      // スリット帯背景
+      const bgGrad = ctx.createLinearGradient(-slitW / 2, -slitHalfH, slitW / 2, slitHalfH);
+      if (cutin.type === 'tandem') {
+        bgGrad.addColorStop(0, '#1e1b4b');
+        bgGrad.addColorStop(0.5, '#431407');
+        bgGrad.addColorStop(1, '#7c2d12');
+      } else if (cutin.type === 'mikoshi') {
+        bgGrad.addColorStop(0, '#311042');
+        bgGrad.addColorStop(0.5, '#78350f');
+        bgGrad.addColorStop(1, '#9a3412');
+      } else {
+        bgGrad.addColorStop(0, '#0f172a');
+        bgGrad.addColorStop(0.5, '#1e293b');
+        bgGrad.addColorStop(1, '#0f766e');
+      }
+      ctx.fillStyle = bgGrad;
+      ctx.fillRect(-slitW / 2, -slitHalfH, slitW, slitHeight);
+
+      // スピード集中線
+      const animOffset = (t * 600) % 80;
+      ctx.lineWidth = 4;
+      for (let lx = -slitW / 2 - 100; lx < slitW / 2 + 100; lx += 40) {
+        const lineX = lx + animOffset;
+        const alpha = 0.08 + Math.abs(Math.sin((lx + t * 200) * 0.02)) * 0.12;
+        ctx.strokeStyle = `rgba(255, 255, 255, ${alpha})`;
+        ctx.beginPath();
+        ctx.moveTo(lineX, -slitHalfH);
+        ctx.lineTo(lineX + 90, slitHalfH);
+        ctx.stroke();
+      }
+
+      // 放射状インパクト集中線
+      const burstOriginX = slitW * 0.15;
+      const burstOriginY = 0;
+      ctx.save();
+      ctx.fillStyle = 'rgba(255, 255, 255, 0.06)';
+      const rayCount = 18;
+      const rayAngleBase = (t * 2.0) % (Math.PI * 2);
+      for (let r = 0; r < rayCount; r++) {
+        const ra = rayAngleBase + (r / rayCount) * Math.PI * 2;
+        ctx.beginPath();
+        ctx.moveTo(burstOriginX, burstOriginY);
+        ctx.lineTo(burstOriginX + Math.cos(ra) * 900, burstOriginY + Math.sin(ra) * 500);
+        ctx.lineTo(burstOriginX + Math.cos(ra + 0.08) * 900, burstOriginY + Math.sin(ra + 0.08) * 500);
+        ctx.closePath();
+        ctx.fill();
+      }
+      ctx.restore();
+
+      // フォールバックキャラ描画
+      const charZoom = 1.0 + p * 0.08;
       const charX = slitW * 0.10;
       const charY = 0;
       ctx.save();
@@ -3392,7 +3425,6 @@ class AsaichiGame {
       ctx.scale(charZoom, charZoom);
 
       if (cutin.type === 'tandem') {
-        // タンデムクロスバイクフォールバック
         if (this.images.tandemBike && this.images.tandemBike.complete && this.images.tandemBike.naturalWidth > 0) {
           const bw = 240;
           const bh = 135;
@@ -3404,7 +3436,6 @@ class AsaichiGame {
           ctx.fillText('🚴💨 60代タンデムライダー！', 0, 0);
         }
       } else if (cutin.type === 'mikoshi') {
-        // 勝浦神輿フォールバック
         if (this.images.mikoshi && this.images.mikoshi.complete && this.images.mikoshi.naturalWidth > 0) {
           const mw = 220;
           const mh = 220;
@@ -3416,11 +3447,9 @@ class AsaichiGame {
           ctx.fillText('🏮 勝浦神輿軍団！！ 🏮', 0, 0);
         }
       } else {
-        // 助太刀ノラネコフォールバック
         if (this.images.cat && this.images.cat.complete) {
           ctx.imageSmoothingEnabled = false;
           const cell = 256;
-          // Row 1（凛々しい歩行ポーズ）を大迫力表示
           ctx.drawImage(this.images.cat, cell, 0, cell, cell, -90, -90, 180, 180);
         } else {
           ctx.font = 'bold 70px sans-serif';
@@ -3430,52 +3459,41 @@ class AsaichiGame {
         }
       }
       ctx.restore();
-    }
+      ctx.restore(); // clip 終了
 
-    ctx.restore(); // clip 終了
+      // スリット帯ボーダー
+      ctx.save();
+      const borderGrad = ctx.createLinearGradient(-slitW / 2, 0, slitW / 2, 0);
+      borderGrad.addColorStop(0, 'rgba(234, 179, 8, 0.2)');
+      borderGrad.addColorStop(0.2, '#fef08a');
+      borderGrad.addColorStop(0.5, '#f59e0b');
+      borderGrad.addColorStop(0.8, '#fef08a');
+      borderGrad.addColorStop(1, 'rgba(234, 179, 8, 0.2)');
 
-    // 3. スリット帯の上下ゴールドボーダーライン（光彩エフェクト）
-    ctx.save();
-    const borderGrad = ctx.createLinearGradient(-slitW / 2, 0, slitW / 2, 0);
-    borderGrad.addColorStop(0, 'rgba(234, 179, 8, 0.2)');
-    borderGrad.addColorStop(0.2, '#fef08a');
-    borderGrad.addColorStop(0.5, '#f59e0b');
-    borderGrad.addColorStop(0.8, '#fef08a');
-    borderGrad.addColorStop(1, 'rgba(234, 179, 8, 0.2)');
+      ctx.strokeStyle = borderGrad;
+      ctx.lineWidth = 4.5;
+      ctx.shadowColor = '#f59e0b';
+      ctx.shadowBlur = 14;
 
-    ctx.strokeStyle = borderGrad;
-    ctx.lineWidth = 4.5;
-    ctx.shadowColor = '#f59e0b';
-    ctx.shadowBlur = 14;
+      ctx.beginPath();
+      ctx.moveTo(-slitW / 2, -slitHalfH);
+      ctx.lineTo(slitW / 2, -slitHalfH);
+      ctx.stroke();
 
-    // 上枠線
-    ctx.beginPath();
-    ctx.moveTo(-slitW / 2, -slitHalfH);
-    ctx.lineTo(slitW / 2, -slitHalfH);
-    ctx.stroke();
+      ctx.beginPath();
+      ctx.moveTo(-slitW / 2, slitHalfH);
+      ctx.lineTo(slitW / 2, slitHalfH);
+      ctx.stroke();
+      ctx.restore();
 
-    // 下枠線
-    ctx.beginPath();
-    ctx.moveTo(-slitW / 2, slitHalfH);
-    ctx.lineTo(slitW / 2, slitHalfH);
-    ctx.stroke();
-    ctx.restore();
+      ctx.restore(); // rotate 終了
 
-    ctx.restore(); // rotate(angle) 終了
-
-    // ========================================================
-    // 4. 水平UIレイヤー
-    // ※ 専用画像がある場合は画像内の文字・セリフ吹き出しを100%活かすためCanvasの文字枠を隠し、
-    //    専用画像読み込み前（フォールバック時）のみCanvas側の文字枠を表示！
-    // ========================================================
-    if (!hasCustomImg) {
-      // A. 上部タイトルプレート：「⚡ お助けキャラ登場！ ⚡」
+      // フォールバック時のCanvas UI
       const bannerW = 380;
       const bannerH = 46;
       const bannerX = (viewW - bannerW) / 2;
       const bannerY = 48;
 
-      // プレート背景
       ctx.save();
       const titleGrad = ctx.createLinearGradient(bannerX, bannerY, bannerX, bannerY + bannerH);
       titleGrad.addColorStop(0, '#fef08a');
@@ -3493,7 +3511,6 @@ class AsaichiGame {
       ctx.stroke();
       ctx.restore();
 
-      // タイトル文字
       ctx.save();
       ctx.font = 'italic 900 24px "Impact", "Arial Black", sans-serif';
       ctx.textAlign = 'center';
@@ -3505,13 +3522,11 @@ class AsaichiGame {
       ctx.fillText('⚡ ' + cutin.title + ' ⚡', viewW / 2, bannerY + bannerH / 2);
       ctx.restore();
 
-      // B. 左下：ミケのポートレートアイコン ＋ セリフ枠
       const boxX = 35;
       const boxY = viewH - 125;
       const boxW = viewW - 70;
       const boxH = 92;
 
-      // セリフボックス背景
       ctx.save();
       ctx.fillStyle = 'rgba(15, 23, 42, 0.92)';
       ctx.strokeStyle = '#e2e8f0';
@@ -3524,7 +3539,6 @@ class AsaichiGame {
       ctx.stroke();
       ctx.restore();
 
-      // ミケの顔アイコン（修正済み・耳見切れのない正面おすわりミケ！）
       const mikeIconSize = 68;
       const mikeX = boxX + 12;
       const mikeY = boxY + 12;
@@ -3544,19 +3558,16 @@ class AsaichiGame {
       } else if (this.images.cat && this.images.cat.complete) {
         ctx.imageSmoothingEnabled = false;
         const cell = 256;
-        // Row 2（正面おすわりミケ・修正済み）を描画
         ctx.drawImage(this.images.cat, 0, cell * 2, cell, cell, mikeX, mikeY, mikeIconSize, mikeIconSize);
       }
       ctx.restore();
 
-      // ミケのネームプレート
       const textStartX = mikeX + mikeIconSize + 16;
       ctx.save();
       ctx.fillStyle = '#fbbf24';
       ctx.font = 'bold 13px sans-serif';
       ctx.fillText('🐾 看板三毛猫 ミケ', textStartX, boxY + 24);
 
-      // ミケの指定セリフ
       ctx.font = 'bold 22px sans-serif';
       ctx.fillStyle = '#ffffff';
       ctx.strokeStyle = '#000000';
@@ -3564,7 +3575,6 @@ class AsaichiGame {
       ctx.strokeText(cutin.speech, textStartX, boxY + 56);
       ctx.fillText(cutin.speech, textStartX, boxY + 56);
 
-      // サブ説明文（効果の告知）
       let effectDesc = '強烈なタンデムアタックで敵を一網打尽にするニャ！';
       if (cutin.type === 'mikoshi') {
         effectDesc = '勝浦の熱気あふれる神輿が敵を豪快に吹き飛ばすニャ！';
@@ -3577,7 +3587,7 @@ class AsaichiGame {
       ctx.restore();
     }
 
-    // C. スキップ案内（画像があってもなくても、右下に小さく点滅表示）
+    // 3. スキップ案内（画像があってもなくても、右下に小さく点滅表示）
     if (cutin.lockoutTimer <= 0) {
       const blinkAlpha = 0.6 + Math.sin(t * 10) * 0.4;
       ctx.save();
@@ -3586,13 +3596,13 @@ class AsaichiGame {
       ctx.shadowColor = '#000000';
       ctx.shadowBlur = 4;
       ctx.textAlign = 'right';
-      ctx.fillText('[ 画面タップ / SPACE で即スキップ ]', viewW - 20, viewH - 18);
+      ctx.fillText('[ 画面タップ / SPACE で即スキップ ]', viewW - 20, viewH - 16);
       ctx.restore();
     }
 
-    // 5. 開始時の白フラッシュ（必殺技炸裂の衝撃）
+    // 4. 開始時の白閃光フラッシュ（必殺技炸裂の衝撃）
     if (p < 0.08) {
-      const flashAlpha = (1.0 - p / 0.08) * 0.45;
+      const flashAlpha = (1.0 - p / 0.08) * 0.55;
       ctx.fillStyle = `rgba(255, 255, 255, ${flashAlpha})`;
       ctx.fillRect(0, 0, viewW, viewH);
     }
