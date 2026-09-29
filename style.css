@@ -425,7 +425,7 @@ body {
 }
 
 #title-overlay {
-  background: url('assets/title_bg.jpg?v=20260908_gpt_final') center center / cover no-repeat !important;
+  background: url('assets/title_bg.webp?v=20260929_webp_v1') center center / cover no-repeat !important;
   backdrop-filter: none;
   position: absolute;
   top: 0;

@@ -157,8 +157,8 @@ class AsaichiGame {
 
   loadAssets() {
     let loaded = 0;
-    // バージョン固定キャッシュキー（アクセスごとの全画像10MB再ダウンロードを防ぎ、ブラウザキャッシュを即座に効かせる！）
-    const cacheKey = '20260929_cat_sprites_v5';
+    // バージョン固定キャッシュキー（アクセスごとの全画像再ダウンロードを防ぎ、ブラウザキャッシュを即座に効かせる！）
+    const cacheKey = '20260929_webp_lightweight_v1';
 
     const loadingOverlay = document.getElementById('loading-overlay');
     const barFill = document.getElementById('loading-bar-fill');
@@ -168,24 +168,24 @@ class AsaichiGame {
     const titleBgImg = new Image();
 
     const list = [
-      { img: titleBgImg,                     src: `assets/title_bg.jpg?v=20260908_gpt_final` },
-      { img: this.images.mapHorizontal,      src: `assets/map_horizontal.jpg?v=${cacheKey}` },
-      { img: this.images.mapPeace,           src: `assets/map_peace.jpg?v=${cacheKey}` },
-      { img: this.images.mapForeground,      src: `assets/map_foreground.png?v=${cacheKey}` },
-      { img: this.images.mapForegroundPeace, src: `assets/map_foreground_peace.png?v=${cacheKey}` },
-      { img: this.images.splashYankee,       src: `assets/splash_yankee.jpg?v=${cacheKey}` },
-      { img: this.images.splashKyon,         src: `assets/splash_kyon.jpg?v=${cacheKey}` },
-      { img: this.images.cutinCat,           src: `assets/cutin_cat.jpg?v=${cacheKey}` },
-      { img: this.images.cutinYankee,        src: `assets/cutin_yankee.jpg?v=${cacheKey}` },
-      { img: this.images.cutinKyon,          src: `assets/cutin_kyon.jpg?v=${cacheKey}` },
-      { img: this.images.cutinTandem,        src: `assets/cutin_tandem.jpg?v=${cacheKey}` },
-      { img: this.images.cutinMikoshi,       src: `assets/cutin_mikoshi.jpg?v=${cacheKey}` },
-      { img: this.images.cutinNoraneko,      src: `assets/cutin_noraneko.jpg?v=${cacheKey}` },
-      { img: this.images.tandemBike,         src: `assets/tandem_bike.png?v=${cacheKey}` },
-      { img: this.images.mikoshi,            src: `assets/katsuura_mikoshi.png?v=${cacheKey}` },
-      { img: this.images.cat,                src: `assets/cat_sprites.png?v=${cacheKey}` },
-      { img: this.images.yankees,            src: `assets/yankee_sprites.png?v=${cacheKey}` },
-      { img: this.images.items,              src: `assets/items.png?v=${cacheKey}` }
+      { img: titleBgImg,                     src: `assets/title_bg.webp?v=${cacheKey}` },
+      { img: this.images.mapHorizontal,      src: `assets/map_horizontal.webp?v=${cacheKey}` },
+      { img: this.images.mapPeace,           src: `assets/map_peace.webp?v=${cacheKey}` },
+      { img: this.images.mapForeground,      src: `assets/map_foreground.webp?v=${cacheKey}` },
+      { img: this.images.mapForegroundPeace, src: `assets/map_foreground_peace.webp?v=${cacheKey}` },
+      { img: this.images.splashYankee,       src: `assets/splash_yankee.webp?v=${cacheKey}` },
+      { img: this.images.splashKyon,         src: `assets/splash_kyon.webp?v=${cacheKey}` },
+      { img: this.images.cutinCat,           src: `assets/cutin_cat.webp?v=${cacheKey}` },
+      { img: this.images.cutinYankee,        src: `assets/cutin_yankee.webp?v=${cacheKey}` },
+      { img: this.images.cutinKyon,          src: `assets/cutin_kyon.webp?v=${cacheKey}` },
+      { img: this.images.cutinTandem,        src: `assets/cutin_tandem.webp?v=${cacheKey}` },
+      { img: this.images.cutinMikoshi,       src: `assets/cutin_mikoshi.webp?v=${cacheKey}` },
+      { img: this.images.cutinNoraneko,      src: `assets/cutin_noraneko.webp?v=${cacheKey}` },
+      { img: this.images.tandemBike,         src: `assets/tandem_bike.webp?v=${cacheKey}` },
+      { img: this.images.mikoshi,            src: `assets/katsuura_mikoshi.webp?v=${cacheKey}` },
+      { img: this.images.cat,                src: `assets/cat_sprites.webp?v=${cacheKey}` },
+      { img: this.images.yankees,            src: `assets/yankee_sprites.webp?v=${cacheKey}` },
+      { img: this.images.items,              src: `assets/items.webp?v=${cacheKey}` }
     ];
     const total = list.length;
 
@@ -260,34 +260,10 @@ class AsaichiGame {
     });
   }
 
-  // タンデムクロスバイクの黒背景を自動透過してキャッシュ
+  // タンデムクロスバイクの背景透過（事前処理済みWebPのためCPU走査は完全スキップして超高速化！）
   prepareTransparentTandemBike() {
-    try {
-      const img = this.images.tandemBike;
-      if (!img || !img.naturalWidth) return;
-      const offCanvas = document.createElement('canvas');
-      offCanvas.width = img.naturalWidth;
-      offCanvas.height = img.naturalHeight;
-      const offCtx = offCanvas.getContext('2d');
-      offCtx.drawImage(img, 0, 0);
-      const imgData = offCtx.getImageData(0, 0, offCanvas.width, offCanvas.height);
-      const data = imgData.data;
-      for (let i = 0; i < data.length; i += 4) {
-        const r = data[i];
-        const g = data[i+1];
-        const b = data[i+2];
-        // 真っ黒・暗所背景を透過
-        if (r < 35 && g < 35 && b < 35) {
-          data[i+3] = 0;
-        } else if (r < 60 && g < 60 && b < 60) {
-          data[i+3] = Math.max(0, Math.floor((r + g + b - 90) * 2.8));
-        }
-      }
-      offCtx.putImageData(imgData, 0, 0);
-      this.tandemBikeCanvas = offCanvas;
-    } catch (e) {
-      console.warn('Tandem bike transparency failed, fallback to original image', e);
-    }
+    // 事前生成された tandem_bike.webp が背景透過済みのため、90万ピクセルの重いCPU走査は不要！
+    this.tandemBikeCanvas = this.images.tandemBike;
   }
 
   // 通行可能ゾーン設定（★ユーザー指定の赤目印エリアに100%完全一致！）
@@ -1166,12 +1142,12 @@ class AsaichiGame {
       return;
     }
 
-    // お助けキャラカットイン演出中（ユーザーがクリック/タップするまでじっくり表示）
+    // お助けキャラカットイン演出中（1.4秒後に自動復帰、またはタップ/クリックで即スキップ！）
     if (this.assistCutin) {
       this.assistCutin.timer += dt;
       if (this.assistCutin.lockoutTimer > 0) this.assistCutin.lockoutTimer -= dt;
-      // 放置対策セーフティ（30秒放置された場合の安全弁）
-      if (this.assistCutin.timer >= 30.0) {
+      // 1.4秒の演出完了で自動的に戦闘へ爽快復帰！（操作不要でテンポ抜群）
+      if (this.assistCutin.timer >= (this.assistCutin.maxTimer || 1.4)) {
         this.endAssistCutin();
       }
       this.updateCamera();
