@@ -10,7 +10,7 @@
   <title>ニャンと多忙な勝浦朝市！〜おつかい猫のヤンキー大乱闘〜 【SFC超美麗版】</title>
   <link rel="manifest" href="manifest.json">
   <link rel="apple-touch-icon" href="assets/cutin_cat.jpg">
-  <link rel="stylesheet" href="style.css?v=20260929_mobile_portrait_v5">
+  <link rel="stylesheet" href="style.css?v=20260929_loading_screen_v6">
 </head>
 <body>
   <div id="game-container">
@@ -59,6 +59,25 @@
     <!-- メインゲームキャンバス（ビューポート 880 x 495） -->
     <div id="canvas-wrapper">
       <canvas id="gameCanvas" width="880" height="495" tabindex="0"></canvas>
+
+      <!-- 0. ローディング画面（全アセット完全読み込み＆リアルタイム進捗ゲージ） -->
+      <div id="loading-overlay" class="overlay loading-screen">
+        <div class="loading-card">
+          <div class="loading-mascot-wrap">
+            <span class="loading-cat">🐾</span>
+            <span class="loading-fish">🐟</span>
+          </div>
+          <h2 class="loading-title">勝浦朝市サバイバー</h2>
+          <div id="loading-status-text" class="loading-status-text">朝市の品物を仕入れ中ニャ...</div>
+          <div class="loading-bar-wrap">
+            <div id="loading-bar-fill" class="loading-bar-fill"></div>
+          </div>
+          <div id="loading-percent" class="loading-percent">0%</div>
+          <div class="loading-tip-banner">
+            💡 <strong>遊び方のコツ：</strong>小判を集めてレベルアップ！自動で強力な技に進化するニャ！
+          </div>
+        </div>
+      </div>
 
       <!-- 1. タイトル画面（ChatGPT生成の超美麗1枚絵全面＋STARTボタン連動ヒットボックス） -->
       <div id="title-overlay" class="overlay title-screen" style="background: url('assets/title_bg.jpg?v=20260908_gpt_final') center center / cover no-repeat !important; cursor: pointer;">
@@ -174,25 +193,51 @@
       </div>
     </div>
 
-    <!-- スマホ縦持ち専用：下部独立コントローラーエリア（指でゲーム画面を隠さない！） -->
+    <!-- スマホ縦持ち専用：レトロ携帯ゲーム機風 下部独立コントローラーエリア -->
     <div id="mobile-controller-zone">
-      <div id="joystick-zone">
-        <div id="joystick-base">
-          <div class="joystick-ring"></div>
-          <div class="joystick-cross h"></div>
-          <div class="joystick-cross v"></div>
-          <div id="joystick-knob">
-            <span class="knob-icon">🐾</span>
+      <!-- 携帯機装飾：エンボスプレート＆スピーカーグリル -->
+      <div class="handheld-decor-bar">
+        <div class="handheld-speaker-dots">
+          <span></span><span></span><span></span><span></span>
+        </div>
+        <div class="handheld-logo">⛩️ KATSUURA PORTABLE 🐾</div>
+        <div class="handheld-speaker-dots">
+          <span></span><span></span><span></span><span></span>
+        </div>
+      </div>
+
+      <!-- コントローラー本体：左側にスティック、右側にダッシュボタン -->
+      <div class="controller-pad-layout">
+        <div id="joystick-zone">
+          <div id="joystick-base">
+            <div class="joystick-ring"></div>
+            <div class="joystick-cross h"></div>
+            <div class="joystick-cross v"></div>
+            <div id="joystick-knob">
+              <span class="knob-icon">🐾</span>
+            </div>
+          </div>
+        </div>
+
+        <div class="handheld-action-buttons">
+          <button type="button" class="handheld-action-btn btn-dash" id="mobile-dash-btn" title="ダッシュ！">
+            <span class="btn-label">DASH</span>
+            <span class="btn-sub">💨</span>
+          </button>
+          <div class="handheld-action-btn btn-auto" title="攻撃は完全自動！">
+            <span class="btn-label">AUTO</span>
+            <span class="btn-sub">⚔️</span>
           </div>
         </div>
       </div>
-      <div class="controller-guide-text">▲ 親指でスワイプしてミケを操作 ▲</div>
+
+      <div class="controller-guide-text">▲ 左手でスティック移動 / 右手でダッシュ ▲</div>
     </div>
   </div>
 
   <!-- 分割スクリプト群（サウンド、定数、ゲーム本体） -->
-  <script src="js/sound.js?v=20260929_mobile_portrait_v5"></script>
-  <script src="js/constants.js?v=20260929_mobile_portrait_v5"></script>
-  <script src="js/game.js?v=20260929_mobile_portrait_v5"></script>
+  <script src="js/sound.js?v=20260929_loading_screen_v6"></script>
+  <script src="js/constants.js?v=20260929_loading_screen_v6"></script>
+  <script src="js/game.js?v=20260929_loading_screen_v6"></script>
 </body>
 </html>

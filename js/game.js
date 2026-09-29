@@ -159,33 +159,86 @@ class AsaichiGame {
     let loaded = 0;
     // バージョン固定キャッシュキー（アクセスごとの全画像10MB再ダウンロードを防ぎ、ブラウザキャッシュを即座に効かせる！）
     const cacheKey = '20260929_cat_sprites_v5';
+
+    const loadingOverlay = document.getElementById('loading-overlay');
+    const barFill = document.getElementById('loading-bar-fill');
+    const pctText = document.getElementById('loading-percent');
+    const statusText = document.getElementById('loading-status-text');
+
+    const titleBgImg = new Image();
+
     const list = [
+      { img: titleBgImg,                     src: `assets/title_bg.jpg?v=20260908_gpt_final` },
       { img: this.images.mapHorizontal,      src: `assets/map_horizontal.jpg?v=${cacheKey}` },
       { img: this.images.mapPeace,           src: `assets/map_peace.jpg?v=${cacheKey}` },
       { img: this.images.mapForeground,      src: `assets/map_foreground.png?v=${cacheKey}` },
       { img: this.images.mapForegroundPeace, src: `assets/map_foreground_peace.png?v=${cacheKey}` },
       { img: this.images.splashYankee,       src: `assets/splash_yankee.jpg?v=${cacheKey}` },
-      { img: this.images.splashKyon,    src: `assets/splash_kyon.jpg?v=${cacheKey}` },
-      { img: this.images.cutinCat,      src: `assets/cutin_cat.jpg?v=${cacheKey}` },
-      { img: this.images.cutinYankee,   src: `assets/cutin_yankee.jpg?v=${cacheKey}` },
-      { img: this.images.cutinKyon,     src: `assets/cutin_kyon.jpg?v=${cacheKey}` },
-      { img: this.images.cutinTandem,   src: `assets/cutin_tandem.jpg?v=${cacheKey}` },
-      { img: this.images.cutinMikoshi,  src: `assets/cutin_mikoshi.jpg?v=${cacheKey}` },
-      { img: this.images.cutinNoraneko, src: `assets/cutin_noraneko.jpg?v=${cacheKey}` },
-      { img: this.images.tandemBike,    src: `assets/tandem_bike.png?v=${cacheKey}` },
-      { img: this.images.mikoshi,       src: `assets/katsuura_mikoshi.png?v=${cacheKey}` },
-      { img: this.images.cat,           src: `assets/cat_sprites.png?v=${cacheKey}` },
-      { img: this.images.yankees,       src: `assets/yankee_sprites.png?v=${cacheKey}` },
-      { img: this.images.items,         src: `assets/items.png?v=${cacheKey}` }
+      { img: this.images.splashKyon,         src: `assets/splash_kyon.jpg?v=${cacheKey}` },
+      { img: this.images.cutinCat,           src: `assets/cutin_cat.jpg?v=${cacheKey}` },
+      { img: this.images.cutinYankee,        src: `assets/cutin_yankee.jpg?v=${cacheKey}` },
+      { img: this.images.cutinKyon,          src: `assets/cutin_kyon.jpg?v=${cacheKey}` },
+      { img: this.images.cutinTandem,        src: `assets/cutin_tandem.jpg?v=${cacheKey}` },
+      { img: this.images.cutinMikoshi,       src: `assets/cutin_mikoshi.jpg?v=${cacheKey}` },
+      { img: this.images.cutinNoraneko,      src: `assets/cutin_noraneko.jpg?v=${cacheKey}` },
+      { img: this.images.tandemBike,         src: `assets/tandem_bike.png?v=${cacheKey}` },
+      { img: this.images.mikoshi,            src: `assets/katsuura_mikoshi.png?v=${cacheKey}` },
+      { img: this.images.cat,                src: `assets/cat_sprites.png?v=${cacheKey}` },
+      { img: this.images.yankees,            src: `assets/yankee_sprites.png?v=${cacheKey}` },
+      { img: this.images.items,              src: `assets/items.png?v=${cacheKey}` }
     ];
     const total = list.length;
-    const check = () => {
-      loaded++;
-      if (loaded >= total) {
-        this.assetsLoaded = true;
-        this.prepareTransparentTandemBike();
+
+    const updateProgress = () => {
+      const pct = Math.min(100, Math.floor((loaded / total) * 100));
+      if (barFill) barFill.style.width = `${pct}%`;
+      if (pctText) pctText.textContent = `${pct}%`;
+
+      if (pct < 35) {
+        if (statusText) statusText.textContent = '勝浦港のお魚を準備中ニャ... 🐟';
+      } else if (pct < 75) {
+        if (statusText) statusText.textContent = '朝市の屋台を設営中ニャ... ⛩️';
+      } else if (pct < 100) {
+        if (statusText) statusText.textContent = 'ミケがお出かけ準備中ニャ... 🐾';
+      } else {
+        if (statusText) statusText.textContent = '仕入れ完了！出撃準備完了ニャ！✨';
       }
     };
+
+    let isFinished = false;
+    const finishLoading = () => {
+      if (isFinished) return;
+      isFinished = true;
+      this.assetsLoaded = true;
+      if (barFill) barFill.style.width = '100%';
+      if (pctText) pctText.textContent = '100%';
+      if (statusText) statusText.textContent = '仕入れ完了！出撃準備完了ニャ！✨';
+      this.prepareTransparentTandemBike();
+      setTimeout(() => {
+        if (loadingOverlay) {
+          loadingOverlay.classList.add('fade-out');
+          setTimeout(() => {
+            loadingOverlay.style.display = 'none';
+          }, 450);
+        }
+      }, 350);
+    };
+
+    const check = () => {
+      loaded++;
+      updateProgress();
+      if (loaded >= total) {
+        finishLoading();
+      }
+    };
+
+    // ネットワーク超低速時の安全フェイルセーフ（最大6秒で強制起動）
+    setTimeout(() => {
+      if (!isFinished) {
+        console.warn('Asset loading timeout reached, forcing start.');
+        finishLoading();
+      }
+    }, 6000);
 
     list.forEach(item => {
       item.img.onload = check;
@@ -747,6 +800,10 @@ class AsaichiGame {
     const targetTouchArea = ctrlZone || joyZone;
     if (targetTouchArea) {
       targetTouchArea.addEventListener('touchstart', (e) => {
+        // 右側ダッシュボタンのタップ時はジョイスティックを開始しない
+        if (e.target && e.target.closest && e.target.closest('#mobile-dash-btn')) {
+          return;
+        }
         e.preventDefault();
         const touch = e.changedTouches[0];
         handleJoyStart(touch.clientX, touch.clientY, touch.identifier);
@@ -779,6 +836,7 @@ class AsaichiGame {
       // PCマウスでもスティックをドラッグ操作可能（テスト・デバッグ用）
       let isMouseJoy = false;
       targetTouchArea.addEventListener('mousedown', (e) => {
+        if (e.target && e.target.closest && e.target.closest('#mobile-dash-btn')) return;
         if (e.button === 0) {
           isMouseJoy = true;
           handleJoyStart(e.clientX, e.clientY, 'mouse');
@@ -793,6 +851,27 @@ class AsaichiGame {
           handleJoyEnd();
         }
       });
+    }
+
+    // スマホ用：右側ダッシュボタン
+    const dashBtn = document.getElementById('mobile-dash-btn');
+    if (dashBtn) {
+      const onDashStart = (e) => {
+        e.preventDefault();
+        e.stopPropagation();
+        this.touchDash = true;
+        dashBtn.style.transform = 'scale(0.9)';
+      };
+      const onDashEnd = (e) => {
+        e.preventDefault();
+        this.touchDash = false;
+        dashBtn.style.transform = '';
+      };
+      dashBtn.addEventListener('touchstart', onDashStart, { passive: false });
+      dashBtn.addEventListener('touchend', onDashEnd);
+      dashBtn.addEventListener('touchcancel', onDashEnd);
+      dashBtn.addEventListener('mousedown', onDashStart);
+      window.addEventListener('mouseup', onDashEnd);
     }
 
     // メインループ起動（例外発生時も決して止まらない完全ノンストップループ）
@@ -1245,6 +1324,11 @@ class AsaichiGame {
     // 韋駄天ブーツ＆コーヒーバフ適用（ボタンなしでも常に爽快に走れる快速スピード）
     let currentSpeed = 5.6 * (1 + this.skills.boots.level * 0.15);
     if (p.speedBuffTimer > 0) currentSpeed *= 1.4;
+
+    // ダッシュ（スマホ右側ダッシュボタン、またはPC Shift/Spaceキーで1.4倍ダッシュ！）
+    const isDashing = this.touchDash || this.keys['ShiftLeft'] || this.keys['ShiftRight'] || this.keys['Space'];
+    p.isDashing = isDashing;
+    if (isDashing) currentSpeed *= 1.4;
 
     if (isMoving) {
       const nx = moveX / inputLen;
@@ -4587,8 +4671,24 @@ class AsaichiGame {
           ctx.fillRect(-16, -42, 32, 42);
         }
       } else {
-        ctx.fillStyle = e.color;
-        ctx.fillRect(-16, -42, 32, 42);
+        // 画像ロード前フォールバック（紫の四角形を全廃し、学ラン・リーゼントのシルエットを描画！）
+        ctx.save();
+        const scale = e.isBoss ? 1.6 : 1.0;
+        ctx.scale(e.dir === 'right' ? scale : -scale, scale);
+        // 学ラン
+        ctx.fillStyle = '#0f172a';
+        ctx.fillRect(-12, -26, 24, 26);
+        // 顔（肌色）
+        ctx.fillStyle = '#fed7aa';
+        ctx.fillRect(-8, -38, 16, 12);
+        // リーゼント（黒髪）
+        ctx.fillStyle = '#1e1b4b';
+        ctx.fillRect(-10, -46, 22, 10);
+        ctx.fillRect(8, -44, 6, 8);
+        // サングラス
+        ctx.fillStyle = '#000000';
+        ctx.fillRect(-6, -35, 12, 3);
+        ctx.restore();
       }
     }
 
