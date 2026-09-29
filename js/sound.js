@@ -708,6 +708,11 @@ class SoundSystem {
     }
   }
 
+  // 17. ★お助けキャラ：ノラネコ参戦威嚇ボイス（リアル猫ちゃんの迫力咆哮「ミャオ〜〜ン！」）
+  playCatHiss() {
+    this.playMeowRoar();
+  }
+
   // ★平和モードBGM開始（のどかな朝市のWeb Audioレトロチップチューン！）
   startPeaceBGM() {
     this.stopBattleBGM();

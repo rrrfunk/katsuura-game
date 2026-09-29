@@ -2231,6 +2231,8 @@ class AsaichiGame {
 
       // ボニートヒットクールダウン
       if (e.bonitoHitTimer > 0) e.bonitoHitTimer -= dt;
+      if (e.shieldHitTimer > 0) e.shieldHitTimer -= dt;
+      if (e.allyHitTimer > 0) e.allyHitTimer -= dt;
 
       // 被弾リアクション（点滅・揺れ・のけぞり・ノックバック）
       if (e.hitFlashTimer > 0) e.hitFlashTimer -= dt;
@@ -2303,12 +2305,18 @@ class AsaichiGame {
       // プレイヤーへの接触ダメージ判定
       if (dist < 32 && p.invincibleTimer <= 0) {
         if (p.shieldBuffTimer > 0) {
-          // わらび餅シールド発動中！ノーダメージ＆敵を弾き返す
-          this.sound.playHit();
-          this.damageEnemy(e, 30);
-          e.x -= dx * 30;
-          e.y -= dy * 30;
-          for (let s = 0; s < 4; s++) this.addParticle(p.x, p.y, 'spark');
+          // わらび餅シールド発動中！敵ごとのクールダウンで弾き返す（連打・音割れ・壁抜けを完全解消！）
+          if (!e.shieldHitTimer || e.shieldHitTimer <= 0) {
+            e.shieldHitTimer = 0.32; // 0.32秒クールダウン
+            this.sound.playHit();
+            this.damageEnemy(e, 40);
+            e.stunTimer = 0.45; // スタンで足止め
+            // 物理ノックバック（直接座標変更ではなく速度ベクトルで安全に吹き飛ばす）
+            const kbForce = e.isBoss ? 160 : 340;
+            e.knockbackVx = -dx * kbForce;
+            e.knockbackVy = -dy * kbForce;
+            for (let s = 0; s < 5; s++) this.addParticle(p.x, p.y, 'spark');
+          }
         } else {
           // 通常被弾
           p.hp = Math.max(0, p.hp - e.atk);
@@ -2582,7 +2590,11 @@ class AsaichiGame {
         this.assistCutinSeen.noraneko = true;
         this.triggerAssistCutin('noraneko', 'あ！ノラネコだにゃー！');
       } else {
-        this.sound.playCatHiss();
+        if (this.sound && typeof this.sound.playCatHiss === 'function') {
+          this.sound.playCatHiss();
+        } else if (this.sound && typeof this.sound.playMeowRoar === 'function') {
+          this.sound.playMeowRoar();
+        }
         this.spawnAllyCat();
       }
     } else if (item.type === 'tantan') {
@@ -2599,11 +2611,12 @@ class AsaichiGame {
   }
 
   // ========================================================
-  // 助太刀仲間にゃんこシステム（電光石火の疾風援護：約0.8秒で瞬殺離脱）
+  // ========================================================
+  // 助太刀仲間にゃんこシステム（電光石火の疾風援護：カットイン格闘ノラネコ豪快突入！）
   // ========================================================
   spawnAllyCat(specificType = null) {
-    const types = ['kuro', 'tora', 'chibi', 'shiro'];
-    const type = specificType || types[Math.floor(Math.random() * types.length)];
+    // カットインの「道着・赤ハチマキの格闘家ノラネコ」に統一してド迫力演出！
+    const type = specificType || 'tora';
     const p = this.player;
 
     // 登場位置（画面左右の外側から音速突入）
@@ -2622,7 +2635,7 @@ class AsaichiGame {
       stateTimer: 0,
       animTimer: 0,
       animFrame: 0,
-      scale: type === 'tora' ? 1.4 : 1.0,
+      scale: 1.35, // 格闘家ノラネコの堂々たる体格！
       actTick: 0
     };
 
@@ -2676,8 +2689,50 @@ class AsaichiGame {
   executeAllyAction(cat, dt) {
     cat.actTick = (cat.actTick || 0) + dt;
 
-    if (cat.type === 'kuro') {
-      // 忍びのクロ：電光石火のチビ爪撃（0.15秒ごとに2本の紫黒光刃で援護）
+    if (cat.type === 'tora') {
+      // ★必殺肉球メガスタンプ＆金剛衝撃波（カットイン格闘ノラネコ真奥義！）
+      if (cat.stateTimer < 0.18) {
+        cat.y -= 240 * dt; // 高く跳躍
+      } else if (!cat.stomped) {
+        cat.stomped = true;
+        cat.y = this.player.y + 10;
+        this.sound.playEnemyDefeat();
+        this.sound.playMeowRoar();
+        this.screenShake = 0.42;
+
+        const stompRadius = 320;
+        // 安全な配列コピーで敵をループ処理（配列破壊クラッシュを完全防止！）
+        const currentEnemies = [...this.enemies];
+        currentEnemies.forEach(e => {
+          const d = Math.hypot(e.x - cat.x, e.y - cat.y);
+          if (d <= stompRadius) {
+            this.damageEnemy(e, 260);
+            e.stunTimer = 2.0;
+            const nx = (e.x - cat.x) || 1;
+            const ny = (e.y - cat.y) || 0;
+            const nd = Math.hypot(nx, ny);
+            e.x += (nx / nd) * 90;
+            e.y += (ny / nd) * 90;
+          }
+        });
+
+        this.meowWaves.push({
+          x: cat.x,
+          y: cat.y,
+          currentRadius: 25,
+          maxRadius: stompRadius,
+          life: 0.45,
+          maxLife: 0.45
+        });
+
+        for (let s = 0; s < 24; s++) {
+          this.addParticle(cat.x, cat.y, 'spark');
+          this.addParticle(cat.x, cat.y, 'confetti');
+        }
+      }
+
+    } else if (cat.type === 'kuro') {
+      // 忍びのクロ：電光石火のチビ爪撃
       if (cat.actTick >= 0.15) {
         cat.actTick = 0;
         this.sound.playSlash();
@@ -2700,8 +2755,8 @@ class AsaichiGame {
         for (let s = 0; s < 3; s++) this.addParticle(cat.x, cat.y - 10, 'spark');
       }
 
-      // 近接周囲の敵への牽制斬撃
-      this.enemies.forEach(e => {
+      const currentEnemies = [...this.enemies];
+      currentEnemies.forEach(e => {
         const d = Math.hypot(e.x - cat.x, e.y - cat.y);
         if (d < 110 && (!e.allyHitTimer || e.allyHitTimer <= 0)) {
           e.allyHitTimer = 0.25;
@@ -2710,48 +2765,8 @@ class AsaichiGame {
         }
       });
 
-    } else if (cat.type === 'tora') {
-      // 豪快トラ吉：跳躍から0.18秒でドォォォンと巨大メガスタンプ着地！
-      if (cat.stateTimer < 0.18) {
-        cat.y -= 220 * dt;
-      } else if (!cat.stomped) {
-        cat.stomped = true;
-        cat.y = this.player.y + 10;
-        this.sound.playEnemyDefeat();
-        this.sound.playMeowRoar();
-        this.screenShake = 0.40;
-
-        const stompRadius = 290;
-        this.enemies.forEach(e => {
-          const d = Math.hypot(e.x - cat.x, e.y - cat.y);
-          if (d <= stompRadius) {
-            this.damageEnemy(e, 240);
-            e.stunTimer = 2.0;
-            const nx = (e.x - cat.x) || 1;
-            const ny = (e.y - cat.y) || 0;
-            const nd = Math.hypot(nx, ny);
-            e.x += (nx / nd) * 85;
-            e.y += (ny / nd) * 85;
-          }
-        });
-
-        this.meowWaves.push({
-          x: cat.x,
-          y: cat.y,
-          currentRadius: 25,
-          maxRadius: stompRadius,
-          life: 0.45,
-          maxLife: 0.45
-        });
-
-        for (let s = 0; s < 20; s++) {
-          this.addParticle(cat.x, cat.y, 'spark');
-          this.addParticle(cat.x, cat.y, 'confetti');
-        }
-      }
-
     } else if (cat.type === 'chibi') {
-      // 疾風チビ：超高速回転（ギュルンと旋回）しながら全方位に魚雷乱射
+      // 疾風チビ：超高速回転しながら魚雷乱射
       const rotSpeed = 16.0;
       cat.orbitAngle = (cat.orbitAngle || 0) + rotSpeed * dt;
       const orbitR = 120;
@@ -2778,7 +2793,8 @@ class AsaichiGame {
         }
       }
 
-      this.enemies.forEach(e => {
+      const currentEnemies = [...this.enemies];
+      currentEnemies.forEach(e => {
         const d = Math.hypot(e.x - cat.x, e.y - cat.y);
         if (d < 80 && (!e.allyHitTimer || e.allyHitTimer <= 0)) {
           e.allyHitTimer = 0.12;
@@ -2788,13 +2804,14 @@ class AsaichiGame {
       });
 
     } else if (cat.type === 'shiro') {
-      // 神使シロ：瞬時に全体天罰落雷＆スタン（HP回復なし・純粋な殲滅援護攻撃に特化！）
+      // 神使シロ：全体天罰落雷＆スタン
       if (!cat.heavensFired) {
         cat.heavensFired = true;
         this.sound.playTaiko();
         this.screenShake = 0.32;
 
-        this.enemies.forEach(e => {
+        const currentEnemies = [...this.enemies];
+        currentEnemies.forEach(e => {
           this.damageEnemy(e, 150);
           e.stunTimer = 2.0;
           for (let s = 0; s < 2; s++) this.addParticle(e.x, e.y, 'spark');
