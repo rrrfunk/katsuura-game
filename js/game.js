@@ -157,7 +157,8 @@ class AsaichiGame {
 
   loadAssets() {
     let loaded = 0;
-    const cacheKey = Date.now();
+    // バージョン固定キャッシュキー（アクセスごとの全画像10MB再ダウンロードを防ぎ、ブラウザキャッシュを即座に効かせる！）
+    const cacheKey = '20260929_cat_sprites_v5';
     const list = [
       { img: this.images.mapHorizontal,      src: `assets/map_horizontal.jpg?v=${cacheKey}` },
       { img: this.images.mapPeace,           src: `assets/map_peace.jpg?v=${cacheKey}` },
@@ -682,16 +683,18 @@ class AsaichiGame {
     // ========================================================
     // スマホ用：右下バーチャルジョイスティック（グリグリ操作）
     // ========================================================
+    // スマホ用：下部コントローラーゾーン＆バーチャルジョイスティック
+    // ========================================================
+    const ctrlZone = document.getElementById('mobile-controller-zone');
     const joyZone = document.getElementById('joystick-zone');
     const joyBase = document.getElementById('joystick-base');
     const joyKnob = document.getElementById('joystick-knob');
 
     let joyTouchId = null;
     let joyBaseCenter = { x: 0, y: 0 };
-    const maxJoyRadius = 38; // 最大傾斜半径（px）
+    const maxJoyRadius = 44; // 最大傾斜半径（px）
 
-    const handleJoyStart = (clientX, clientY, identifier) => {
-      joyTouchId = identifier;
+    const updateJoyBaseCenter = () => {
       if (joyBase) {
         const rect = joyBase.getBoundingClientRect();
         joyBaseCenter = {
@@ -699,6 +702,11 @@ class AsaichiGame {
           y: rect.top + rect.height / 2
         };
       }
+    };
+
+    const handleJoyStart = (clientX, clientY, identifier) => {
+      joyTouchId = identifier;
+      updateJoyBaseCenter();
       handleJoyMove(clientX, clientY);
     };
 
@@ -736,15 +744,17 @@ class AsaichiGame {
       }
     };
 
-    if (joyZone) {
-      joyZone.addEventListener('touchstart', (e) => {
+    const targetTouchArea = ctrlZone || joyZone;
+    if (targetTouchArea) {
+      targetTouchArea.addEventListener('touchstart', (e) => {
         e.preventDefault();
         const touch = e.changedTouches[0];
         handleJoyStart(touch.clientX, touch.clientY, touch.identifier);
       }, { passive: false });
 
-      joyZone.addEventListener('touchmove', (e) => {
-        e.preventDefault();
+      // window に touchmove / touchend を登録することで指がゾーン外に多少外れても追従！
+      window.addEventListener('touchmove', (e) => {
+        if (joyTouchId === null) return;
         for (let i = 0; i < e.changedTouches.length; i++) {
           const touch = e.changedTouches[i];
           if (touch.identifier === joyTouchId) {
@@ -755,6 +765,7 @@ class AsaichiGame {
       }, { passive: false });
 
       const onJoyTouchEnd = (e) => {
+        if (joyTouchId === null) return;
         for (let i = 0; i < e.changedTouches.length; i++) {
           if (e.changedTouches[i].identifier === joyTouchId) {
             handleJoyEnd();
@@ -762,12 +773,12 @@ class AsaichiGame {
           }
         }
       };
-      joyZone.addEventListener('touchend', onJoyTouchEnd);
-      joyZone.addEventListener('touchcancel', onJoyTouchEnd);
+      window.addEventListener('touchend', onJoyTouchEnd);
+      window.addEventListener('touchcancel', onJoyTouchEnd);
 
       // PCマウスでもスティックをドラッグ操作可能（テスト・デバッグ用）
       let isMouseJoy = false;
-      joyZone.addEventListener('mousedown', (e) => {
+      targetTouchArea.addEventListener('mousedown', (e) => {
         if (e.button === 0) {
           isMouseJoy = true;
           handleJoyStart(e.clientX, e.clientY, 'mouse');
@@ -4380,8 +4391,61 @@ class AsaichiGame {
       ctx.drawImage(this.images.cat, col * cell, row * cell, cell, cell, -26, -46, 52, 52);
       ctx.restore();
     } else {
-      ctx.fillStyle = '#ea580c';
-      ctx.fillRect(-18, -36, 36, 36);
+      // 画像ロード待ち時のフォールバック描画（オレンジの四角形を全廃し、可愛い三毛猫シルエットを描画！）
+      ctx.save();
+      // 体（白）
+      ctx.fillStyle = '#f8fafc';
+      ctx.beginPath();
+      ctx.ellipse(0, -14, 15, 12, 0, 0, Math.PI * 2);
+      ctx.fill();
+      // 背中の三毛ブチ（茶色・黒）
+      ctx.fillStyle = '#d97706';
+      ctx.beginPath();
+      ctx.arc(4, -16, 6, 0, Math.PI * 2);
+      ctx.fill();
+      ctx.fillStyle = '#1e293b';
+      ctx.beginPath();
+      ctx.arc(-5, -13, 5, 0, Math.PI * 2);
+      ctx.fill();
+      // 頭（白）
+      ctx.fillStyle = '#ffffff';
+      ctx.beginPath();
+      ctx.arc(0, -26, 11, 0, Math.PI * 2);
+      ctx.fill();
+      // 耳（右：茶色、左：黒）
+      ctx.fillStyle = '#d97706';
+      ctx.beginPath();
+      ctx.moveTo(3, -33);
+      ctx.lineTo(10, -42);
+      ctx.lineTo(11, -30);
+      ctx.closePath();
+      ctx.fill();
+      ctx.fillStyle = '#1e293b';
+      ctx.beginPath();
+      ctx.moveTo(-3, -33);
+      ctx.lineTo(-10, -42);
+      ctx.lineTo(-11, -30);
+      ctx.closePath();
+      ctx.fill();
+      // 目と鼻
+      ctx.fillStyle = '#0f172a';
+      ctx.beginPath();
+      ctx.arc(-4, -26, 1.8, 0, Math.PI * 2);
+      ctx.arc(4, -26, 1.8, 0, Math.PI * 2);
+      ctx.fill();
+      ctx.fillStyle = '#f43f5e';
+      ctx.beginPath();
+      ctx.arc(0, -23, 1.2, 0, Math.PI * 2);
+      ctx.fill();
+      // しっぽ
+      ctx.strokeStyle = '#d97706';
+      ctx.lineWidth = 3;
+      ctx.lineCap = 'round';
+      ctx.beginPath();
+      ctx.moveTo(-12, -14);
+      ctx.quadraticCurveTo(-20, -22, -16, -30);
+      ctx.stroke();
+      ctx.restore();
     }
 
     ctx.restore();
