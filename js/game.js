@@ -455,7 +455,15 @@ class AsaichiGame {
     document.addEventListener('mozfullscreenchange', updateFsButtons);
     document.addEventListener('MSFullscreenChange', updateFsButtons);
 
+    const isMobileDevice = () => {
+      return /Android|iPhone|iPad|iPod/i.test(navigator.userAgent) || 
+             (navigator.maxTouchPoints > 1 && window.innerWidth <= 1024);
+    };
+
     const tryAutoFullscreen = () => {
+      // PCブラウザでは勝手に全画面化しない！スマホ・モバイル時のみ全画面化を試みる
+      if (!isMobileDevice()) return;
+
       // 画面全体フィット
       document.body?.classList?.add('pseudo-fullscreen');
       const el = document.getElementById('game-container') || document.documentElement;
@@ -480,8 +488,9 @@ class AsaichiGame {
       updateFsButtons();
     };
 
-    // 画面回転監視（スマホを横持ちにしたら自動でフルスクリーンモード適用）
+    // 画面回転監視（スマホを横持ちにしたら自動でフルスクリーンモード適用。PCでは発動しない！）
     const handleOrientation = () => {
+      if (!isMobileDevice()) return;
       const isLandscape = window.innerWidth > window.innerHeight;
       if (isLandscape && window.innerWidth <= 960) {
         document.body?.classList?.add('pseudo-fullscreen');
