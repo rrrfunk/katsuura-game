@@ -241,14 +241,21 @@ class AsaichiGame {
     }, 6000);
 
     list.forEach(item => {
-      item.img.onload = check;
-      item.img.onerror = () => {
-        console.warn('Asset failed to load:', item.src);
+      let isDone = false;
+      const onDone = () => {
+        if (isDone) return;
+        isDone = true;
         check();
       };
+      item.img.onload = onDone;
+      item.img.onerror = () => {
+        console.warn('Asset failed to load:', item.src);
+        onDone();
+      };
       item.img.src = item.src;
+      // すでにキャッシュ等でロード完了している場合
       if (item.img.complete && item.img.naturalWidth > 0) {
-        check();
+        onDone();
       }
     });
   }
@@ -745,7 +752,7 @@ class AsaichiGame {
 
     let joyTouchId = null;
     let joyBaseCenter = { x: 0, y: 0 };
-    const maxJoyRadius = 48; // 最大傾斜半径（px：大径スティック対応）
+    const maxJoyRadius = 42; // 最大傾斜半径（px：120pxベース最適化）
 
     const updateJoyBaseCenter = () => {
       if (joyBase) {
@@ -866,6 +873,10 @@ class AsaichiGame {
   }
 
   startGame() {
+    if (!this.assetsLoaded) {
+      console.warn('Assets still loading, please wait...');
+      return;
+    }
     this.sound.init();
     this.sound.startPeaceBGM(); // ★平和モード開始！のどかな朝市のレトロチップチューンBGM
 
