@@ -745,7 +745,7 @@ class AsaichiGame {
 
     let joyTouchId = null;
     let joyBaseCenter = { x: 0, y: 0 };
-    const maxJoyRadius = 44; // 最大傾斜半径（px）
+    const maxJoyRadius = 48; // 最大傾斜半径（px：大径スティック対応）
 
     const updateJoyBaseCenter = () => {
       if (joyBase) {
@@ -800,10 +800,6 @@ class AsaichiGame {
     const targetTouchArea = ctrlZone || joyZone;
     if (targetTouchArea) {
       targetTouchArea.addEventListener('touchstart', (e) => {
-        // 右側ダッシュボタンのタップ時はジョイスティックを開始しない
-        if (e.target && e.target.closest && e.target.closest('#mobile-dash-btn')) {
-          return;
-        }
         e.preventDefault();
         const touch = e.changedTouches[0];
         handleJoyStart(touch.clientX, touch.clientY, touch.identifier);
@@ -836,7 +832,6 @@ class AsaichiGame {
       // PCマウスでもスティックをドラッグ操作可能（テスト・デバッグ用）
       let isMouseJoy = false;
       targetTouchArea.addEventListener('mousedown', (e) => {
-        if (e.target && e.target.closest && e.target.closest('#mobile-dash-btn')) return;
         if (e.button === 0) {
           isMouseJoy = true;
           handleJoyStart(e.clientX, e.clientY, 'mouse');
@@ -851,27 +846,6 @@ class AsaichiGame {
           handleJoyEnd();
         }
       });
-    }
-
-    // スマホ用：右側ダッシュボタン
-    const dashBtn = document.getElementById('mobile-dash-btn');
-    if (dashBtn) {
-      const onDashStart = (e) => {
-        e.preventDefault();
-        e.stopPropagation();
-        this.touchDash = true;
-        dashBtn.style.transform = 'scale(0.9)';
-      };
-      const onDashEnd = (e) => {
-        e.preventDefault();
-        this.touchDash = false;
-        dashBtn.style.transform = '';
-      };
-      dashBtn.addEventListener('touchstart', onDashStart, { passive: false });
-      dashBtn.addEventListener('touchend', onDashEnd);
-      dashBtn.addEventListener('touchcancel', onDashEnd);
-      dashBtn.addEventListener('mousedown', onDashStart);
-      window.addEventListener('mouseup', onDashEnd);
     }
 
     // メインループ起動（例外発生時も決して止まらない完全ノンストップループ）

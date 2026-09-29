@@ -10,7 +10,7 @@
   <title>ニャンと多忙な勝浦朝市！〜おつかい猫のヤンキー大乱闘〜 【SFC超美麗版】</title>
   <link rel="manifest" href="manifest.json">
   <link rel="apple-touch-icon" href="assets/cutin_cat.jpg">
-  <link rel="stylesheet" href="style.css?v=20260929_loading_screen_v6">
+  <link rel="stylesheet" href="style.css?v=20260929_joystick_v7">
 </head>
 <body>
   <div id="game-container">
@@ -193,51 +193,25 @@
       </div>
     </div>
 
-    <!-- スマホ縦持ち専用：レトロ携帯ゲーム機風 下部独立コントローラーエリア -->
+    <!-- スマホ縦持ち専用：下部独立ジョイスティックエリア（指でゲーム画面を隠さない！） -->
     <div id="mobile-controller-zone">
-      <!-- 携帯機装飾：エンボスプレート＆スピーカーグリル -->
-      <div class="handheld-decor-bar">
-        <div class="handheld-speaker-dots">
-          <span></span><span></span><span></span><span></span>
-        </div>
-        <div class="handheld-logo">⛩️ KATSUURA PORTABLE 🐾</div>
-        <div class="handheld-speaker-dots">
-          <span></span><span></span><span></span><span></span>
-        </div>
-      </div>
-
-      <!-- コントローラー本体：左側にスティック、右側にダッシュボタン -->
-      <div class="controller-pad-layout">
-        <div id="joystick-zone">
-          <div id="joystick-base">
-            <div class="joystick-ring"></div>
-            <div class="joystick-cross h"></div>
-            <div class="joystick-cross v"></div>
-            <div id="joystick-knob">
-              <span class="knob-icon">🐾</span>
-            </div>
-          </div>
-        </div>
-
-        <div class="handheld-action-buttons">
-          <button type="button" class="handheld-action-btn btn-dash" id="mobile-dash-btn" title="ダッシュ！">
-            <span class="btn-label">DASH</span>
-            <span class="btn-sub">💨</span>
-          </button>
-          <div class="handheld-action-btn btn-auto" title="攻撃は完全自動！">
-            <span class="btn-label">AUTO</span>
-            <span class="btn-sub">⚔️</span>
+      <div id="joystick-zone">
+        <div id="joystick-base">
+          <div class="joystick-ring"></div>
+          <div class="joystick-cross h"></div>
+          <div class="joystick-cross v"></div>
+          <div id="joystick-knob">
+            <span class="knob-icon">🐾</span>
           </div>
         </div>
       </div>
-
-      <div class="controller-guide-text">▲ 左手でスティック移動 / 右手でダッシュ ▲</div>
+      <div class="controller-guide-text">▲ 親指でスティックをスワイプしてミケを操作 ▲</div>
     </div>
   </div>
 
   <!-- 分割スクリプト群（サウンド、定数、ゲーム本体） -->
-  <script src="js/sound.js?v=20260929_loading_screen_v6"></script>
-  <script src="js/constants.js?v=20260929_loading_screen_v6"></script>
-  <script src="js/game.js?v=20260929_loading_screen_v6"></script>
+  <script src="js/sound.js?v=20260929_joystick_v7"></script>
+  <script src="js/constants.js?v=20260929_joystick_v7"></script>
+  <script src="js/game.js?v=20260929_joystick_v7"></script>
 </body>
 </html>
