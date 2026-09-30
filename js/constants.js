@@ -208,7 +208,7 @@ const SKILL_DEFS = {
     id: 'magnet',
     name: 'マグネットヒゲ',
     icon: '🧲',
-    desc: '落ちている小判や回復アイテムの吸引範囲が広がる！',
+    desc: '朝市アイテムを引き寄せる範囲が広がる！',
     maxLevel: 5,
     getDesc: (lv) => `アイテム吸引範囲 +${lv * 45}px！`
   },

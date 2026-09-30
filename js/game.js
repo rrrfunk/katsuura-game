@@ -41,6 +41,7 @@ class AsaichiGame {
       tandemBike: new Image(),
       mikoshi: new Image(),
       cat: new Image(),
+      allyCat: new Image(),
       yankees: new Image(),
       items: new Image()
     };
@@ -73,7 +74,6 @@ class AsaichiGame {
     this.survivalTime = 0;
     this.simulationTime = 0;
     this.killCount = 0;
-    this.gold = 0;
     this.screenShake = 0;
 
     // プレイヤー（三毛猫ミケ）
@@ -102,7 +102,6 @@ class AsaichiGame {
       invincibleTimer: 0,
       speedBuffTimer: 0,
       speedSmokeTimer: 0,
-      shieldBuffTimer: 0,
       knockbackVx: 0,
       knockbackVy: 0,
       knockbackTimer: 0
@@ -139,12 +138,11 @@ class AsaichiGame {
     this.projectiles = [];
     this.meowWaves = [];
 
-    // ドロップアイテム（小判、回復アイテム、金のまたたび）
+    // ドロップアイテム（コーヒー、わらび餅、タンタン麺）
     this.dropItems = [];
 
     // 助太刀仲間にゃんこ（クロ、トラ吉、チビ、シロ）
     this.allyCats = [];
-    this.coinStreak = 0;
 
     // エフェクト（パーティクル、ダメージ数字）
     this.particles = [];
@@ -207,7 +205,7 @@ class AsaichiGame {
 
   isGameInputBlocked() {
     const tutorialOverlay = document.getElementById('tutorial-overlay');
-    return this.state !== 'PLAYING' || document.hidden || this.mobilePortrait || this.orientationResumeRequired ||
+    return this.state !== 'PLAYING' || document.hidden || this.mobilePortrait || this.orientationResumeRequired || this.mobileUI?.isPaused ||
       !!(tutorialOverlay && !tutorialOverlay.classList.contains('hidden'));
   }
 
@@ -261,6 +259,8 @@ class AsaichiGame {
     const titleButton = document.getElementById('title-fullscreen-btn');
     if (headerButton) headerButton.textContent = label;
     if (titleButton) titleButton.textContent = label;
+    this.mobileUI?.resize();
+    this.mobileUI?.syncVisibility();
   }
 
   resumeAfterOrientation() {
@@ -279,6 +279,7 @@ class AsaichiGame {
     if (startButton) startButton.textContent = fromTitle ? '説明を閉じて出撃するニャ！（START）' : 'ゲームに戻る';
     if (backButton) backButton.textContent = fromTitle ? '閉じる' : 'タイトルへ戻る';
     document.getElementById('tutorial-overlay')?.classList.remove('hidden');
+    this.mobileUI?.syncVisibility();
   }
 
   returnToTitle() {
@@ -334,6 +335,7 @@ class AsaichiGame {
       { img: this.images.cutinNoraneko,      src: `assets/cutin_noraneko.webp?v=${cacheKey}` },
       { img: this.images.tandemBike,         src: `assets/tandem_bike.webp?v=${cacheKey}` },
       { img: this.images.mikoshi,            src: `assets/katsuura_mikoshi.webp?v=${cacheKey}` },
+      { img: this.images.allyCat,            src: 'assets/ally_noraneko.webp?v=20260930_mobile_v6' },
       { img: this.images.cat,                src: `assets/cat_sprites.webp?v=${cacheKey}` },
       { img: this.images.yankees,            src: `assets/yankee_sprites.webp?v=${cacheKey}` },
       { img: this.images.items,              src: `assets/items.webp?v=${cacheKey}` }
@@ -501,6 +503,7 @@ class AsaichiGame {
 
   // 入力・表示・描画ループを責務別の登録処理へ分ける
   initEvents() {
+    this.mobileUI = new MobileUI(this);
     this.initKeyboardEvents();
     this.initPresentationEvents();
     this.initPointerEvents();
@@ -584,7 +587,7 @@ class AsaichiGame {
       const text = toast.querySelector('.toast-text');
       if (text) {
         text.textContent = isIOS
-          ? 'iPhone Chromeのタブではバーを隠せない場合があります。共有ボタンから「ホーム画面に追加」し、アプリとして起動できる場合は追加アイコンから開くとバーなしで遊べます。'
+          ? 'このブラウザではバーを隠せない場合があります。共有ボタンから「ホーム画面に追加」し、アプリとして起動できる場合は追加アイコンから開くとバーなしで遊べます。'
           : 'このブラウザはページの全画面表示に対応していません。画面の表示領域に合わせて遊べます。';
       }
       toast.classList.remove('hidden');
@@ -674,7 +677,6 @@ class AsaichiGame {
 
     document.getElementById('btn-quick-start')?.addEventListener('click', (e) => {
       e.stopPropagation();
-      tryEnterFullscreen();
       this.startGame();
     });
     document.getElementById('orientation-fullscreen-btn')?.addEventListener('click', (e) => {
@@ -692,7 +694,6 @@ class AsaichiGame {
     document.getElementById('btn-tutorial-start')?.addEventListener('click', () => {
       document.getElementById('tutorial-overlay').classList.add('hidden');
       if (this.state === 'TITLE') {
-        tryEnterFullscreen();
         this.startGame();
       }
     });
@@ -702,7 +703,6 @@ class AsaichiGame {
     });
     document.getElementById('restart-btn')?.addEventListener('click', (e) => {
       e.stopPropagation();
-      tryEnterFullscreen();
       this.startGame();
     });
 
@@ -1034,7 +1034,6 @@ class AsaichiGame {
     this.survivalTime = 0;
     this.simulationTime = 0;
     this.killCount = 0;
-    this.gold = 0;
     this.screenShake = 0;
     this.bossSpawned1 = false;
     this.bossSpawned2 = false;
@@ -1054,7 +1053,6 @@ class AsaichiGame {
     this.player.invincibleTimer = 0;
     this.player.speedBuffTimer = 0;
     this.player.speedSmokeTimer = 0;
-    this.player.shieldBuffTimer = 0;
     this.player.knockbackTimer = 0;
     this.player.knockbackVx = 0;
     this.player.knockbackVy = 0;
@@ -1108,7 +1106,6 @@ class AsaichiGame {
     this.joystickVector = { x: 0, y: 0 };
     this.mouseInput.active = false;
     this.allyCats = [];
-    this.coinStreak = 0;
     this.particles = [];
     this.damageNumbers = [];
     this.comicPopups = [];
@@ -1314,7 +1311,7 @@ class AsaichiGame {
   // 4. 更新ロジック（サバイバーコア）
   // ========================================================
   update(dt) {
-    if (this.state !== 'PLAYING' || document.hidden || this.mobilePortrait || this.orientationResumeRequired) return;
+    if (this.isGameInputBlocked()) return;
 
     const tutorialOverlay = document.getElementById('tutorial-overlay');
     if (tutorialOverlay && !tutorialOverlay.classList.contains('hidden')) return;
@@ -1431,7 +1428,6 @@ class AsaichiGame {
     // バフ・アニメーションタイマー
     if (p.invincibleTimer > 0) p.invincibleTimer -= dt;
     if (p.speedBuffTimer > 0) p.speedBuffTimer -= dt;
-    if (p.shieldBuffTimer > 0) p.shieldBuffTimer -= dt;
     if (p.scratchAnimTimer > 0) p.scratchAnimTimer -= dt; // ひっかき攻撃モーションタイマー
 
     // ノックバック処理
@@ -2544,7 +2540,6 @@ class AsaichiGame {
 
       // ボニートヒットクールダウン
       if (e.bonitoHitTimer > 0) e.bonitoHitTimer -= dt;
-      if (e.shieldHitTimer > 0) e.shieldHitTimer -= dt;
       if (e.allyHitTimer > 0) e.allyHitTimer -= dt;
 
       // 被弾リアクション（点滅・揺れ・のけぞり・ノックバック）
@@ -2629,20 +2624,6 @@ class AsaichiGame {
 
       // プレイヤーへの接触ダメージ判定
       if (dist < 32 && p.invincibleTimer <= 0) {
-        if (p.shieldBuffTimer > 0) {
-          // わらび餅シールド発動中！敵ごとのクールダウンで弾き返す（連打・音割れ・壁抜けを完全解消！）
-          if (!e.shieldHitTimer || e.shieldHitTimer <= 0) {
-            e.shieldHitTimer = 0.32; // 0.32秒クールダウン
-            this.sound.playHit();
-            this.damageEnemy(e, 40);
-            e.stunTimer = 0.45; // スタンで足止め
-            // 物理ノックバック（直接座標変更ではなく速度ベクトルで安全に吹き飛ばす）
-            const kbForce = e.isBoss ? 160 : 340;
-            e.knockbackVx = -dx * kbForce;
-            e.knockbackVy = -dy * kbForce;
-            for (let s = 0; s < 5; s++) this.addParticle(p.x, p.y, 'spark');
-          }
-        } else {
           // 通常被弾
           p.hp = Math.max(0, p.hp - e.atk);
           p.invincibleTimer = 0.8;
@@ -2655,7 +2636,6 @@ class AsaichiGame {
           p.knockbackTimer = 0.18;
 
           this.addDamageNumber(p.x, p.y - 20, e.atk, '#ef4444');
-        }
       }
     }
   }
@@ -2912,7 +2892,6 @@ class AsaichiGame {
         this.triggerTandemBikeRush();
       }
     } else if (item.type === 'warabi') {
-      p.shieldBuffTimer = 3.5; // 3.5秒間シールド展開（敵接触を弾く）
       for (let s = 0; s < 8; s++) this.addParticle(p.x, p.y, 'confetti');
       if (!this.assistCutinSeen.noraneko) {
         this.assistCutinSeen.noraneko = true;
@@ -3168,19 +3147,16 @@ class AsaichiGame {
     ctx.ellipse(0, 0, 18 * cat.scale, 7 * cat.scale, 0, 0, Math.PI * 2);
     ctx.fill();
 
-    // 仲間にゃんこのスプライト描画
-    if (this.images.cat && this.images.cat.complete && this.images.cat.naturalWidth > 0) {
-      ctx.imageSmoothingEnabled = false;
-      const cell = SPRITES.cat.cell;
-      const col = cat.animFrame % 4;
-      const row = 1;
-
+    // カットインと同じ赤ハチマキの格闘ノラネコ。ミケのシートを流用しない。
+    const sprite = this.images.allyCat;
+    if (sprite.complete && sprite.naturalWidth > 0) {
+      const height = 78 * cat.scale;
+      const width = height * sprite.naturalWidth / sprite.naturalHeight;
       ctx.save();
       if (cat.dir === 'left') ctx.scale(-1, 1);
-      ctx.scale(cat.scale, cat.scale);
-
-      // スプライト直接描画（ctx.filterによる激重ソフトウェアラスタライズを完全撤廃！）
-      ctx.drawImage(this.images.cat, col * cell, row * cell, cell, cell, -26, -46, 52, 52);
+      const lean = cat.state === 'acting' ? 0 : Math.sin(cat.animTimer) * 0.08;
+      ctx.rotate(lean);
+      ctx.drawImage(sprite, -width / 2, -height, width, height);
       ctx.restore();
     }
 
@@ -3269,6 +3245,7 @@ class AsaichiGame {
 
   render() {
     const ctx = this.ctx;
+    this.mobileUI?.syncVisibility();
     ctx.clearRect(0, 0, this.viewW, this.viewH);
 
     ctx.save();
@@ -3315,12 +3292,24 @@ class AsaichiGame {
     this.renderLevelUpBanner(ctx);
 
     // I. 初回エンカウントイベント演出カットイン
-    this.renderEventCutin(ctx);
+    if (this.eventState !== 'NONE') this.renderCinematic(ctx, this.renderEventCutin);
 
     // J. 格ゲー必殺技風・お助けキャラカットイン演出
     if (this.assistCutin) {
-      this.renderAssistCutin(ctx);
+      this.renderCinematic(ctx, this.renderAssistCutin);
     }
+  }
+
+  // カットインは共通座標で描画し、横長画面でも文字と絵を切らない。
+  renderCinematic(ctx, draw) {
+    const scale = Math.min(this.viewW / 880, this.viewH / 495);
+    ctx.save();
+    ctx.fillStyle = '#080c10';
+    ctx.fillRect(0, 0, this.viewW, this.viewH);
+    ctx.translate((this.viewW - 880 * scale) / 2, (this.viewH - 495 * scale) / 2);
+    ctx.scale(scale, scale);
+    draw.call(this, ctx);
+    ctx.restore();
   }
 
   // ストリートファイター6風「HERE COMES A NEW CHALLENGER!」対戦乱入カットイン演出！
@@ -3333,8 +3322,8 @@ class AsaichiGame {
     const isYankee = this.eventState === 'YANKEE';
     const isKyon = this.eventState === 'KYON';
 
-    const viewW = this.viewW;
-    const viewH = this.viewH;
+    const viewW = 880;
+    const viewH = 495;
 
     // 1. 上部〜中央：格ゲー乱入スプラッシュ画面（y: 0 〜 365）
     const splashH = 365;
@@ -3537,7 +3526,7 @@ class AsaichiGame {
     let subText = '勝浦朝市を自由にお散歩するニャ！（WASD / 矢印キーで移動）';
     if (isYankee) {
       speechText = '「ヤンキーだにゃ！朝市の平和を守るにゃー！」';
-      subText = 'オート攻撃でヤンキーを蹴散らし、落とした小判を拾うニャ！';
+      subText = 'オート攻撃でヤンキーを蹴散らし、経験値で強くなるニャ！';
     } else if (isKyon) {
       speechText = '「キョンが現れたにゃ！すばしっこいから気をつけるニャ！」';
       subText = 'ピョンピョン跳ねて突進してくるニャ！周囲をよく見て回避するニャ！';
@@ -3624,8 +3613,8 @@ class AsaichiGame {
     if (!this.assistCutin) return;
 
     const cutin = this.assistCutin;
-    const viewW = this.viewW;
-    const viewH = this.viewH;
+    const viewW = 880;
+    const viewH = 495;
     const t = cutin.timer;
     const maxT = cutin.maxTimer;
     const p = Math.min(1.0, t / maxT);
@@ -3798,10 +3787,10 @@ class AsaichiGame {
           ctx.fillText('🏮 勝浦神輿軍団！！ 🏮', 0, 0);
         }
       } else {
-        if (this.images.cat && this.images.cat.complete) {
-          ctx.imageSmoothingEnabled = false;
-          const cell = 256;
-          ctx.drawImage(this.images.cat, cell, 0, cell, cell, -90, -90, 180, 180);
+        if (this.images.allyCat.complete && this.images.allyCat.naturalWidth > 0) {
+          const sprite = this.images.allyCat;
+          const width = 200 * sprite.naturalWidth / sprite.naturalHeight;
+          ctx.drawImage(sprite, -width / 2, -100, width, 200);
         } else {
           ctx.font = 'bold 70px sans-serif';
           ctx.textAlign = 'center';
@@ -4029,7 +4018,7 @@ class AsaichiGame {
     }
   }
 
-  // ドロップアイテム描画（超美麗ピクセルアート小判・生カツオ・SPICE COFFEE・わらび餅・金のまたたび）
+  // ドロップアイテム描画
   renderDropItems(ctx) {
     const now = this.simulationTime * 1000;
     const minX = this.camera.x - 40;
@@ -4049,52 +4038,10 @@ class AsaichiGame {
       // 地面の影
       ctx.fillStyle = 'rgba(15, 23, 42, 0.45)';
       ctx.beginPath();
-      ctx.ellipse(item.x, item.y + 10, item.type === 'coin' ? 9 : 14, item.type === 'coin' ? 4 : 5, 0, 0, Math.PI * 2);
+      ctx.ellipse(item.x, item.y + 10, 14, 5, 0, 0, Math.PI * 2);
       ctx.fill();
 
-      if (item.type === 'coin') {
-        // ★本物の江戸黄金小判（刻印・打目・ハイライト光沢！）
-        ctx.save();
-        const isBig = item.val >= 10;
-        const kw = isBig ? 12 : 8;
-        const kh = isBig ? 18 : 13;
-
-        // 1. 小判本体（山吹色〜黄金の立体感）
-        ctx.fillStyle = '#f59e0b';
-        ctx.strokeStyle = '#92400e';
-        ctx.lineWidth = 1.6;
-        ctx.beginPath();
-        ctx.ellipse(ix, iy, kw, kh, 0, 0, Math.PI * 2);
-        ctx.fill();
-        ctx.stroke();
-
-        // 2. 内側のゴールドハイライト面
-        ctx.fillStyle = '#fef08a';
-        ctx.beginPath();
-        ctx.ellipse(ix - 1, iy - 1, kw - 2.5, kh - 2.5, 0, 0, Math.PI * 2);
-        ctx.fill();
-
-        // 3. 小判特有の茣蓙目（打目模様ライン）
-        ctx.strokeStyle = '#d97706';
-        ctx.lineWidth = 1;
-        ctx.beginPath();
-        ctx.moveTo(ix - kw + 3, iy - 4); ctx.lineTo(ix + kw - 3, iy - 4);
-        ctx.moveTo(ix - kw + 2, iy);     ctx.lineTo(ix + kw - 2, iy);
-        ctx.moveTo(ix - kw + 3, iy + 4); ctx.lineTo(ix + kw - 3, iy + 4);
-        ctx.stroke();
-
-        // 4. 中央の刻印「壱」
-        ctx.fillStyle = '#78350f';
-        ctx.fillRect(ix - 2, iy - 1, 4, 1.5);
-
-        // 5. 左上のキラリ光沢ハイライト
-        ctx.fillStyle = '#ffffff';
-        ctx.beginPath();
-        ctx.arc(ix - kw/2, iy - kh/2 + 2, isBig ? 2.5 : 1.6, 0, Math.PI * 2);
-        ctx.fill();
-
-        ctx.restore();
-      } else if (item.type === 'matatabi') {
+      if (item.type === 'matatabi') {
         // ★金のまたたび（黄金の招き猫の鈴＆神々しい光輪）
         ctx.save();
         // 鈴本体
@@ -4631,16 +4578,6 @@ class AsaichiGame {
     const shadowScale = Math.max(0.7, 1 - Math.abs(hopY) / 12);
     ctx.ellipse(0, -hopY * 0.4, 18 * shadowScale, 6 * shadowScale, 0, 0, Math.PI * 2);
     ctx.fill();
-
-    // わらび餅バリアシールド（回転する金色の円環）
-    if (p.shieldBuffTimer > 0) {
-      const rot = this.simulationTime * 5;
-      ctx.strokeStyle = '#fbbf24';
-      ctx.lineWidth = 3.0;
-      ctx.beginPath();
-      ctx.arc(0, -18, 32, rot, rot + Math.PI * 1.5);
-      ctx.stroke();
-    }
 
     // コーヒー爆速湯気エフェクト
     // 点滅（被弾無敵）
@@ -5323,6 +5260,7 @@ class AsaichiGame {
 
   // レベルアップ＆告知バナー描画（画面上部中央の豪華ネオンテロップ）
   renderLevelUpBanner(ctx) {
+    if (this.isMobilePhoneActive) return; // モバイルは読みやすいDOM通知を使用
     if (!this.levelUpBanner || this.levelUpBanner.timer <= 0) return;
 
     const b = this.levelUpBanner;
@@ -5442,6 +5380,7 @@ class AsaichiGame {
 
   // UI表示の更新
   updateUI() {
+    this.mobileUI?.updateHUD();
     // レベル ＆ EXPバー
     const lvBadge = document.getElementById('player-level-badge');
     if (lvBadge) lvBadge.textContent = `LV. ${this.player.level}`;
@@ -5491,10 +5430,6 @@ class AsaichiGame {
     // 撃破数
     const koDisplay = document.getElementById('ko-display');
     if (koDisplay) koDisplay.textContent = `${this.killCount} 体`;
-
-    // 小判
-    const scoreDisplay = document.getElementById('score-display');
-    if (scoreDisplay) scoreDisplay.textContent = `💰 ${this.gold}`;
   }
 
   // ゲーム終了（クリア or ゲームオーバー）
@@ -5535,7 +5470,7 @@ class AsaichiGame {
       }
       if (restartBtn) restartBtn.textContent = 'もう一度朝市を守るニャ！（REPLAY）';
     } else {
-      if (headline) headline.textContent = '💀 ミケ力尽きる…ゲームオーバー';
+      if (headline) headline.textContent = 'ミケ、力尽きる…';
       if (starRating) starRating.textContent = this.survivalTime > 60 ? '★★★' : '★';
       if (rankTitle) {
         if (this.survivalTime > 100) rankTitle.textContent = '勇敢なる朝市パトロール隊長';

@@ -11,14 +11,15 @@
   <title>ニャンと多忙な勝浦朝市！〜おつかい猫のヤンキー大乱闘〜 【SFC超美麗版】</title>
   <link rel="manifest" href="manifest.json">
   <link rel="apple-touch-icon" href="assets/apple-touch-icon.png">
-  <link rel="stylesheet" href="style.css?v=20260930_pdca_v5">
+  <link rel="stylesheet" href="style.css?v=20260930_mobile_v6">
+  <link rel="stylesheet" href="mobile.css?v=20260930_mobile_v6">
 </head>
 <body>
   <div id="game-container">
     <!-- 上部ヘッダーUI（ダダサバイバー風SFCアーケード調HUD） -->
     <header id="ui-header" class="hidden">
       <div class="header-left">
-        <div class="stage-badge">勝浦朝市 ⛩️ 遠見岬神社サバイバー</div>
+        <div class="stage-badge" title="勝浦朝市・遠見岬神社サバイバー">勝浦朝市</div>
         <div class="level-box">
           <span class="level-badge" id="player-level-badge">LV. 1</span>
           <div class="exp-bar-container" title="経験値ゲージ（敵を倒すと経験値を獲得！）">
@@ -78,7 +79,7 @@
       <!-- 1. タイトル画面（ChatGPT生成の超美麗1枚絵全面＋STARTボタン連動ヒットボックス） -->
       <div id="title-overlay" class="overlay title-screen" style="background: url('assets/title_bg.webp?v=20260929_webp_lightweight_v1') center center / cover no-repeat !important;">
         <button id="title-fullscreen-btn" class="title-fs-btn" title="全画面表示切り替え" aria-label="全画面表示を切り替える">⛶ 全画面</button>
-        <button id="btn-quick-start" class="sfc-start-hitbox" title="START 出撃！" aria-label="出撃してゲームを始める"></button>
+        <button id="btn-quick-start" class="sfc-start-hitbox" title="START 出撃！" aria-label="出撃してゲームを始める"><span class="mobile-start-label">出撃する ▶</span></button>
       </div>
 
       <!-- 2. レベルアップ選択オーバーレイ（非表示のまま互換保持） -->
@@ -127,7 +128,7 @@
             <div class="tuto-item">
               <div class="tuto-icon">🍡🐾⚡</div>
               <div class="tuto-header">4. 朝市名物わらび餅 ＆ 助太刀</div>
-              <p>🍡<strong>わらび餅</strong>: シールドが付き、忍びクロなどの助太刀猫が敵を急襲！<br>
+              <p>🍡<strong>わらび餅</strong>: 赤ハチマキの格闘ノラネコが敵を急襲！<br>
               ☕<strong>SPICE COFFEE</strong>: 暴走タンデム自転車が出現して敵を一網打尽！<br>
               ※アイテムはマップ上に定期的にランダム発生するニャ！</p>
             </div>
@@ -185,6 +186,17 @@
       </div>
     </div>
 
+    <div id="mobile-hud" hidden aria-label="ゲームの状態">
+      <div class="mobile-vitals">
+        <div class="mobile-health"><span>HP</span><strong id="mobile-hp">100 / 100</strong><span id="mobile-level">Lv.1</span></div>
+        <div class="mobile-meter"><div id="mobile-hp-fill"></div></div>
+        <div class="mobile-exp-meter" aria-label="次のレベルまでの経験値"><div id="mobile-exp-fill"></div></div>
+      </div>
+      <div class="mobile-clock"><span id="mobile-timer-label">総長登場まで</span><strong id="mobile-timer">02:00</strong></div>
+      <button id="mobile-pause" type="button" aria-label="一時停止メニューを開く"><span aria-hidden="true">Ⅱ</span></button>
+    </div>
+    <div id="mobile-notice" hidden role="status"></div>
+
     <!-- スマートフォン横画面の仮想ジョイスティック。CSSで画面内に重ねて配置する。 -->
     <div id="mobile-controller-zone">
       <div id="joystick-zone">
@@ -200,6 +212,18 @@
       <div class="controller-guide-text">▲ 親指でスティックをスワイプしてミケを操作 ▲</div>
     </div>
   </div>
+
+  <dialog id="pause-menu" aria-labelledby="pause-title">
+    <div class="pause-heading"><div><p>勝浦朝市パトロール</p><h2 id="pause-title">ひとやすみ</h2></div><button id="mobile-resume" type="button" autofocus>続ける ▶</button></div>
+    <p id="pause-stats"></p>
+    <div class="pause-actions">
+      <button id="mobile-sound" type="button">音：ON</button>
+      <button id="mobile-fullscreen" type="button">全画面表示</button>
+      <button id="mobile-help" type="button">遊び方</button>
+      <button id="mobile-title" type="button">タイトルへ戻る</button>
+    </div>
+    <p class="pause-note">右下のスティックで移動。攻撃は自動！<br>ブラウザバーなしで遊ぶには、共有から「ホーム画面に追加」して開いてね。</p>
+  </dialog>
 
   <div id="orientation-overlay" class="hidden" role="dialog" aria-modal="true" aria-labelledby="orientation-title" aria-describedby="orientation-copy">
     <div class="orientation-card">
@@ -218,8 +242,9 @@
   </div>
 
   <!-- 分割スクリプト群（サウンド、定数、ゲーム本体） -->
-  <script src="js/sound.js?v=20260930_pdca_v4"></script>
-  <script src="js/constants.js?v=20260930_pdca_v2"></script>
-  <script src="js/game.js?v=20260930_pdca_v3"></script>
+  <script src="js/sound.js?v=20260930_mobile_v6"></script>
+  <script src="js/constants.js?v=20260930_mobile_v6"></script>
+  <script src="js/mobile-ui.js?v=20260930_mobile_v6"></script>
+  <script src="js/game.js?v=20260930_mobile_v6"></script>
 </body>
 </html>

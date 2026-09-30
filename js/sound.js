@@ -330,15 +330,6 @@ class SoundSystem {
     setTimeout(() => this.playTone(480, 'sine', 0.09, 0.14), 35);
   }
 
-  // 6. 小判チャリン音（マリオやレトロ名作のような澄んだクリスタルコイン「チャリーン♪」）
-  playCoin() {
-    if (!this.soundEnabled || !this.ctx) return;
-    const now = this.ctx.currentTime;
-    // B5 (987.77Hz) -> E6 (1318.51Hz)
-    this.playTone(987.77, 'sine', 0.09, 0.16);
-    setTimeout(() => this.playTone(1318.51, 'sine', 0.25, 0.18), 50);
-  }
-
   // 7. レベルアップ（華やかなファンファーレアルペジオ♪）
   playLevelUp() {
     const notes = [523.25, 659.25, 783.99, 1046.5, 1318.5, 1567.98];
