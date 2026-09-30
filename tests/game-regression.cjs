@@ -424,87 +424,82 @@ vm.runInContext(`${fs.readFileSync(path.join(root, 'js/sound.js'), 'utf8')}\nglo
 
 async function verifyPeaceBgmWaitsForAudioResume() {
   let finishResume;
-  let oscillatorStarts = 0;
-  class FakeGainNode {
-    constructor() {
-      this.gain = {
-        setValueAtTime() {},
-        exponentialRampToValueAtTime() {}
-      };
-    }
-    connect() {}
-  }
-  class FakeOscillator {
-    constructor() {
-      this.frequency = { setValueAtTime() {} };
-    }
-    connect() {}
-    start() { oscillatorStarts++; }
-    stop() {}
-  }
+  const sources = [];
   class DeferredAudioContext {
     constructor() {
-      this.state = 'suspended';
-      this.currentTime = 0;
-      this.sampleRate = 8;
-      this.destination = {};
+      this.state = 'suspended'; this.currentTime = 0; this.sampleRate = 8000;
+      this.destination = {}; this.listeners = [];
     }
+    addEventListener(type, fn) { if (type === 'statechange') this.listeners.push(fn); }
     resume() {
-      return new Promise((resolve) => {
-        finishResume = () => {
-          this.state = 'running';
-          resolve();
-        };
-      });
+      return new Promise(resolve => { finishResume = () => {
+        this.state = 'running'; this.listeners.forEach(fn => fn()); resolve();
+      }; });
     }
-    suspend() {
-      this.state = 'suspended';
-      return Promise.resolve();
+    suspend() { this.state = 'interrupted'; return Promise.resolve(); }
+    createBuffer(channels, length, sampleRate) {
+      const data = new Float32Array(length);
+      return { sampleRate, duration:length/sampleRate, getChannelData:() => data };
     }
-    createBuffer() { return { getChannelData: () => new Float32Array(8) }; }
-    createOscillator() { return new FakeOscillator(); }
-    createGain() { return new FakeGainNode(); }
+    createBufferSource() {
+      const source = { context:this, starts:0, stops:0, disconnected:false,
+        connect() {}, start() { this.starts++; }, stop() { this.stops++; },
+        disconnect() { this.disconnected=true; } };
+      sources.push(source); return source;
+    }
   }
-
   soundContext.window.AudioContext = DeferredAudioContext;
   const sound = new soundContext.__SoundSystem();
+  sound.loadCustomAudioBuffers = () => {};
+  const oldTimeout = soundContext.setTimeout;
+  let timers = 0;
+  soundContext.setTimeout = () => { timers++; return 1; };
   sound.startPeaceBGM();
-  assert.equal(sound.peaceBgmPlaying, false, 'peace melody waits while AudioContext is suspended');
-  assert.equal(oscillatorStarts, 0, 'peace melody does not schedule notes before resume');
+  assert.equal(sound.peaceBgmPlaying, false, 'peace music waits for audio permission');
+  assert.equal(sources.length, 0, 'no source before context resumes');
   finishResume();
-  await new Promise((resolve) => setImmediate(resolve));
-  assert.equal(sound.peaceBgmPlaying, true, 'peace melody starts after AudioContext resumes');
-  assert.equal(oscillatorStarts, 2, 'first peace note starts melody and bass oscillators');
+  await new Promise(resolve => setImmediate(resolve));
+  const first = sound.peaceBgmSource;
+  assert.equal(first.loop, true, 'audio thread repeats the entire melody');
+  assert.equal(first.starts, 1);
+  assert.equal(timers, 0, 'continuous music has no per-note JavaScript timer');
+  assert.ok(first.buffer.duration > 4 && first.buffer.duration < 5);
+  const samples = first.buffer.getChannelData(0);
+  assert.ok(samples.some(v => Math.abs(v) > .01), 'PCM melody is audible, not an empty loop');
+  assert.ok(samples.every(v => Number.isFinite(v) && Math.abs(v) < .15), 'samples stay finite and within headroom');
+  assert.equal(Math.abs(samples[0]), 0, 'start ramps in without a click');
+  assert.equal(samples[samples.length-1], 0, 'rest gives a silent loop seam');
 
   await sound.ctx.suspend();
   const resumeCurrent = sound.resumeCurrentBGM();
-  assert.equal(sound.peaceBgmPlaying, false, 'interrupted peace loop is cleared before resuming');
-  finishResume();
-  await resumeCurrent;
-  await new Promise((resolve) => setImmediate(resolve));
-  assert.equal(sound.peaceBgmPlaying, true, 'peace melody restarts after an audio interruption');
-  assert.equal(oscillatorStarts, 4, 'resumed peace loop starts a fresh pair of oscillators');
+  finishResume(); await resumeCurrent;
+  assert.equal(sound.peaceBgmSource, first, 'interruption resumes the same loop without duplicate tracks');
+  assert.equal(first.starts, 1);
+  await sound.resumeCurrentBGM();
+  assert.equal(sources.length, 1, 'repeated gestures do not restart music');
 
+  // OSにより音源が終了した場合は、次の操作で同じバッファを再利用する。
+  first.onended();
+  await sound.resumeCurrentBGM();
+  const recovered = sound.peaceBgmSource;
+  assert.notEqual(recovered, first);
+  assert.equal(recovered.buffer, first.buffer);
   sound.stopPeaceBGM();
-  assert.equal(sound.peaceBgmPlaying, false, 'peace melody stops cleanly');
+  assert.equal(recovered.stops, 1);
+  assert.equal(recovered.disconnected, true);
+  sound.ctx.listeners.forEach(fn => fn());
+  assert.equal(sound.peaceBgmSource, null, 'explicit stop is not undone by a context event');
 
   const staleSound = new soundContext.__SoundSystem();
-  const oscillatorStartsBeforeTransition = oscillatorStarts;
-  staleSound.startPeaceBGM();
-  const finishStaleResume = finishResume;
-  staleSound.startBattleBGM();
-  finishStaleResume();
-  await new Promise((resolve) => setImmediate(resolve));
-  assert.equal(staleSound.currentBgmType, 'BATTLE', 'scene change wins over pending peace audio startup');
-  assert.equal(staleSound.peaceBgmPlaying, false, 'pending peace startup cannot override battle audio');
-  assert.equal(oscillatorStarts, oscillatorStartsBeforeTransition, 'cancelled peace startup emits no notes');
-
-  await staleSound.ctx.suspend();
-  const resumeBattle = staleSound.resumeCurrentBGM();
-  assert.equal(staleSound.ctx.state, 'suspended', 'battle audio context enters suspended state');
-  finishResume();
-  await resumeBattle;
-  assert.equal(staleSound.ctx.state, 'running', 'next interaction resumes the shared audio context in battle mode');
+  staleSound.loadCustomAudioBuffers = () => {};
+  const countBeforeTransition = sources.length;
+  staleSound.startPeaceBGM(); const finishStaleResume = finishResume;
+  staleSound.startBattleBGM(); finishStaleResume();
+  await new Promise(resolve => setImmediate(resolve));
+  assert.equal(staleSound.currentBgmType, 'BATTLE');
+  assert.equal(staleSound.peaceBgmPlaying, false);
+  assert.equal(sources.length, countBeforeTransition, 'pending peace startup cannot play over battle');
+  soundContext.setTimeout = oldTimeout;
 }
 
 
@@ -654,8 +649,23 @@ async function verifyPeaceBgmWaitsForAudioResume() {
   }
 }
 
+// 被弾・スタンでも敵を白い面で覆わず、影以外の楕円塗りを追加しない。
+{
+  let ellipses = 0, strokes = 0;
+  const styles = [];
+  const ctx = new Proxy({}, {
+    get: (_, key) => key === 'ellipse' ? () => ellipses++ : key === 'stroke' ? () => strokes++ : () => {},
+    set: (_, key, value) => { if (key === 'fillStyle' || key === 'strokeStyle') styles.push(value); return true; }
+  });
+  const game = makeGame({ simulationTime: 1, images: { yankees: null } });
+  game.drawEnemy(ctx, { x:10,y:20,w:36,h:48,hp:100,maxHp:100,type:'tsuppari',hitFlashTimer:.08,stunTimer:1 });
+  assert.equal(ellipses, 1, 'only the ground shadow uses an ellipse');
+  assert.equal(strokes, 1, 'a single small spark marks the hit');
+  assert.ok(!styles.some(s => /255, ?255, ?255|#fff(?:fff)?$/i.test(s)), 'no white wash or white hit core');
+}
+
 verifyPeaceBgmWaitsForAudioResume().then(() => {
-  console.log('PDCA regression checks passed: 29 + peace BGM resume');
+  console.log('PDCA regression checks passed: 30 + peace BGM loop/resume');
 }).catch((error) => {
   console.error(error);
   process.exitCode = 1;

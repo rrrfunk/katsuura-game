@@ -16,9 +16,11 @@ class SoundSystem {
     this.currentBgmType = 'NONE'; // 'NONE' | 'PEACE' | 'BATTLE'
     this.resumeBgmType = 'PEACE';
 
-    // 平和モードBGM用タイマー・状態
-    this.peaceBgmTimer = null;
+    // 平和BGMは音声スレッドでループ。1音ごとのJSタイマーを使わない。
+    this.peaceBgmSource = null;
+    this.peaceBgmBuffer = null;
     this.peaceBgmPlaying = false;
+    this.peaceBgmRequested = false;
     this.peaceBgmGeneration = 0;
 
     // ユーザー提供の本格戦闘BGM（高品質・軽量AAC最適化版：assets/bgm.m4a）
@@ -68,6 +70,12 @@ class SoundSystem {
     if ((!this.ctx || this.ctx.state === 'closed') && AudioCtx) {
       try {
         this.ctx = new AudioCtx();
+        const context = this.ctx;
+        context.addEventListener?.('statechange', () => {
+          // OSによる中断から音声が戻った際、曲の状態だけ残る無音を防ぐ。
+          if (this.ctx === context && context.state === 'running' &&
+              this.soundEnabled && this.currentBgmType === 'PEACE') this.ensurePeaceBgmSource();
+        });
         this.createNoiseBuffer();
         this.loadCustomAudioBuffers();
       } catch (error) {
@@ -733,60 +741,103 @@ class SoundSystem {
     this.playMeowRoar();
   }
 
-  // ★平和モードBGM開始（のどかな朝市のWeb Audioレトロチップチューン！）
+  // 同じ朝市メロディを初回だけPCMへ合成し、以降は音声側で途切れずループする。
+  createPeaceBgmBuffer() {
+    const rate = this.ctx.sampleRate;
+    if (this.peaceBgmBuffer?.sampleRate === rate) return this.peaceBgmBuffer;
+    const melody = [
+      [440, .22], [493.88, .22], [554.37, .22], [659.25, .44],
+      [554.37, .22], [493.88, .22], [440, .44], [0, .22],
+      [659.25, .22], [739.99, .22], [880, .44], [739.99, .22],
+      [659.25, .22], [554.37, .44], [440, .44], [0, .22]
+    ];
+    const lengths = melody.map(([, duration]) => Math.round(duration * rate));
+    const buffer = this.ctx.createBuffer(1, lengths.reduce((a, b) => a + b, 0), rate);
+    const data = buffer.getChannelData(0);
+    let offset = 0;
+    melody.forEach(([frequency, duration], index) => {
+      const length = lengths[index];
+      if (frequency > 0) {
+        const leadLength = Math.round(duration * .85 * rate);
+        const bassLength = Math.round(duration * .9 * rate);
+        const leadDecay = Math.pow(.0001 / .035, 1 / leadLength);
+        const bassDecay = Math.pow(.0001 / .040, 1 / bassLength);
+        let leadGain = .035, bassGain = .040;
+        for (let i = 0; i < length; i++) {
+          const phase = i * frequency / rate;
+          // 高域の倍音を抑えた矩形波と三角波。先頭3msは立ち上げてクリックを防ぐ。
+          let square = 0;
+          for (let harmonic = 1; harmonic <= 5; harmonic += 2) {
+            if (frequency * harmonic < rate / 2) square += Math.sin(phase * Math.PI * 2 * harmonic) / harmonic;
+          }
+          const bassPhase = phase / 2;
+          const triangle = 1 - 4 * Math.abs((bassPhase % 1) - .5);
+          const attack = Math.min(1, i / (rate * .003));
+          data[offset + i] = attack * ((i < leadLength ? square * (4 / Math.PI) * leadGain : 0) +
+            (i < bassLength ? triangle * bassGain : 0));
+          leadGain *= leadDecay;
+          bassGain *= bassDecay;
+        }
+      }
+      offset += length;
+    });
+    this.peaceBgmBuffer = buffer;
+    return buffer;
+  }
+
+  ensurePeaceBgmSource() {
+    if (!this.soundEnabled || !this.peaceBgmRequested || this.currentBgmType !== 'PEACE' || this.ctx?.state !== 'running') return;
+    if (this.peaceBgmSource?.context === this.ctx) return;
+    this.clearPeaceBgmSource();
+    try {
+      const source = this.ctx.createBufferSource();
+      source.buffer = this.createPeaceBgmBuffer();
+      source.loop = true;
+      source.connect(this.ctx.destination);
+      source.onended = () => {
+        if (this.peaceBgmSource !== source) return;
+        this.peaceBgmSource = null;
+        this.peaceBgmPlaying = false;
+        source.disconnect();
+      };
+      this.peaceBgmSource = source;
+      source.start(0);
+      this.peaceBgmPlaying = true;
+    } catch (error) {
+      this.clearPeaceBgmSource();
+      console.warn('Peace BGM could not start', error);
+    }
+  }
+
   startPeaceBGM() {
     this.stopBattleBGM();
     this.stopClearBGM();
     this.stopPeaceBGM();
     this.currentBgmType = 'PEACE';
+    this.peaceBgmRequested = true;
     if (!this.soundEnabled) return;
     const generation = this.peaceBgmGeneration;
-
-    // のどかな朝市のメロディループ
-    const melody = [
-      { f: 440, d: 0.22 }, { f: 493.88, d: 0.22 }, { f: 554.37, d: 0.22 }, { f: 659.25, d: 0.44 },
-      { f: 554.37, d: 0.22 }, { f: 493.88, d: 0.22 }, { f: 440, d: 0.44 }, { f: 0, d: 0.22 },
-      { f: 659.25, d: 0.22 }, { f: 739.99, d: 0.22 }, { f: 880, d: 0.44 }, { f: 739.99, d: 0.22 },
-      { f: 659.25, d: 0.22 }, { f: 554.37, d: 0.44 }, { f: 440, d: 0.44 }, { f: 0, d: 0.22 }
-    ];
-
-    let noteIdx = 0;
-    const playNext = () => {
-      if (!this.peaceBgmPlaying || !this.soundEnabled) return;
-      const note = melody[noteIdx];
-      const duration = note.d;
-
-      if (note.f > 0) {
-        // 主旋律（柔らかな矩形波、耳に優しい控えめ音量）
-        this.playTone(note.f, 'square', duration * 0.85, 0.035);
-        // 優しい三角波ベース
-        this.playTone(note.f / 2, 'triangle', duration * 0.9, 0.040);
-      }
-
-      noteIdx = (noteIdx + 1) % melody.length;
-      this.peaceBgmTimer = setTimeout(playNext, duration * 1000);
-    };
-
-    // iPhone Safari等ではresume()完了前に鳴らすと、最初の音が捨てられることがある。
-    // 音声コンテキストが再生可能になってからメロディを開始する。
     Promise.resolve(this.init()).then((isRunning) => {
-      if (!isRunning || !this.soundEnabled || this.currentBgmType !== 'PEACE' ||
-          this.peaceBgmGeneration !== generation) return;
-      this.peaceBgmPlaying = true;
-      playNext();
-    }).catch((error) => {
-      console.warn('Peace BGM could not start', error);
-    });
+      if (!isRunning || this.peaceBgmGeneration !== generation) return;
+      this.ensurePeaceBgmSource();
+    }).catch(error => console.warn('Peace BGM could not start', error));
   }
 
-  // 平和モードBGM停止
-  stopPeaceBGM() {
-    this.peaceBgmGeneration++;
+  clearPeaceBgmSource() {
+    const source = this.peaceBgmSource;
+    this.peaceBgmSource = null;
     this.peaceBgmPlaying = false;
-    if (this.peaceBgmTimer) {
-      clearTimeout(this.peaceBgmTimer);
-      this.peaceBgmTimer = null;
+    if (source) {
+      source.onended = null;
+      try { source.stop(); } catch (error) {}
+      try { source.disconnect(); } catch (error) {}
     }
+  }
+
+  stopPeaceBGM() {
+    this.peaceBgmRequested = false;
+    this.peaceBgmGeneration++;
+    this.clearPeaceBgmSource();
   }
 
   // Safariでタブや音声デバイスから戻った後、次の操作で現在のBGMを復帰する。
@@ -794,9 +845,7 @@ class SoundSystem {
     if (!this.soundEnabled || this.currentBgmType === 'NONE') return Promise.resolve(false);
     const type = this.currentBgmType;
 
-    if (type === 'PEACE' && this.ctx && this.ctx.state !== 'running' && this.peaceBgmPlaying) {
-      this.stopPeaceBGM();
-    }
+    const generation = this.peaceBgmGeneration;
 
     // コンテキストとHTMLAudioを同じユーザー操作中に再開し、iOSの再生許可を逃さない。
     const contextRecovery = this.init();
@@ -813,8 +862,9 @@ class SoundSystem {
     return Promise.all([Promise.resolve(contextRecovery).catch(() => false), audioRecovery]).then(([isRunning, audioResumed]) => {
       if (!this.soundEnabled || this.currentBgmType !== type) return false;
       if (type === 'PEACE') {
-        if (!isRunning) return false;
-        if (!this.peaceBgmPlaying) this.startPeaceBGM();
+        if (!isRunning || this.peaceBgmGeneration !== generation) return false;
+        this.ensurePeaceBgmSource();
+        return this.peaceBgmPlaying;
       }
       return audioResumed;
     }).catch(() => false);

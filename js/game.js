@@ -570,6 +570,9 @@ class AsaichiGame {
     const resumeAudioFromGesture = () => this.sound.resumeCurrentBGM();
     window.addEventListener('pointerdown', resumeAudioFromGesture, { capture: true, passive: true });
     window.addEventListener('keydown', resumeAudioFromGesture, { capture: true });
+    window.addEventListener('touchend', resumeAudioFromGesture, { capture: true, passive: true });
+    window.addEventListener('focus', resumeAudioFromGesture);
+    window.addEventListener('pageshow', resumeAudioFromGesture);
     document.addEventListener('visibilitychange', () => {
       if (document.hidden) this.clearInputState();
       else this.sound.resumeCurrentBGM();
@@ -2556,8 +2559,8 @@ class AsaichiGame {
     if (!enemy || !Number.isFinite(amount) || amount <= 0 || enemy.hp <= 0 || !this.enemies.includes(enemy)) return false;
     enemy.hp = Math.max(0, enemy.hp - amount);
 
-    // 1. 白熱フラッシュ＆点滅タイマー
-    enemy.hitFlashTimer = 0.16;
+    // 1. 小さな被弾火花（体を白く覆わず、短時間だけ表示）
+    enemy.hitFlashTimer = 0.08;
 
     // 2. 被弾ヒットシェイク（激しい振動）
     enemy.hitShakeTimer = 0.18;
@@ -4405,7 +4408,7 @@ class AsaichiGame {
   // （旧周回カツオ描画は全廃）
   drawBonitoBoomerangOrbit(ctx) {}
 
-  // 敵描画（ヤンキー、キョン、トンビ、ボス：被弾時の揺れ・のけぞり・白熱点滅対応）
+  // 敵描画（被弾時の揺れ・のけぞり・小さな火花）
   drawEnemy(ctx, e) {
     ctx.save();
 
@@ -4430,9 +4433,8 @@ class AsaichiGame {
     ctx.ellipse(0, 0, e.w / 2, 7, 0, 0, Math.PI * 2);
     ctx.fill();
 
-    // 3. 被弾ホワイトフラッシュ・白熱点滅（超激重な ctx.filter を完全撤廃し、超軽量オーバーレイで実現！）
-    const isHitFlashing = (e.hitFlashTimer > 0);
-    const isStunFlashing = (e.stunTimer > 0 && Math.floor(this.simulationTime * 1000 / 80) % 2 === 0);
+    // 被弾・スタンは輪郭と服が隠れない小さな目印だけ表示する。
+    const isHitFlashing = e.hitFlashTimer > 0 && !this.reduceMotion;
 
     if (e.type === 'kyon' || e.type === 'boss_kyon') {
       // 房総名物キョン（ピョンピョン跳ねる小型シカのプロシージャルドット絵）
@@ -4559,45 +4561,19 @@ class AsaichiGame {
       }
     }
 
-    // 4. 被弾ヒットインパクトの閃光（Hit Spark & Slash Impact）
+    // 肩の横に短い金色の火花。連続被弾しても白い面で敵を覆わない。
     if (isHitFlashing) {
-      ctx.save();
-      const sparkR = e.isBoss ? 26 : 16;
-
-      // 外側イエローオーラ発光（shadowBlurを使わず太い半透明ストロークで超高速描画！）
-      ctx.strokeStyle = 'rgba(253, 224, 71, 0.75)';
-      ctx.lineWidth = 5;
+      ctx.strokeStyle = `rgba(253, 224, 71, ${.7 * Math.min(1, e.hitFlashTimer / .08)})`;
+      ctx.lineWidth = 1.5;
       ctx.beginPath();
-      ctx.moveTo(-sparkR, -22); ctx.lineTo(sparkR, -22);
-      ctx.moveTo(0, -22 - sparkR); ctx.lineTo(0, -22 + sparkR);
+      ctx.moveTo(-24, -30); ctx.lineTo(-19, -27);
+      ctx.moveTo(19, -27); ctx.lineTo(24, -30);
       ctx.stroke();
-
-      // 中心白熱コア
-      ctx.strokeStyle = '#ffffff';
-      ctx.lineWidth = 2.2;
-      ctx.beginPath();
-      ctx.moveTo(-sparkR, -22); ctx.lineTo(sparkR, -22);
-      ctx.moveTo(0, -22 - sparkR); ctx.lineTo(0, -22 + sparkR);
-      ctx.stroke();
-
-      // 斜め火花
-      ctx.strokeStyle = '#fde047';
-      ctx.lineWidth = 1.8;
-      const diagR = sparkR * 0.7;
-      ctx.beginPath();
-      ctx.moveTo(-diagR, -22 - diagR); ctx.lineTo(diagR, -22 + diagR);
-      ctx.moveTo(-diagR, -22 + diagR); ctx.lineTo(diagR, -22 - diagR);
-      ctx.stroke();
-
-      ctx.restore();
     }
-
-    // 被弾ホワイトフラッシュ・白熱点滅の軽量オーバーレイ
-    if (isHitFlashing || isStunFlashing) {
-      ctx.fillStyle = isHitFlashing ? 'rgba(255, 255, 255, 0.75)' : 'rgba(253, 224, 71, 0.6)';
-      ctx.beginPath();
-      ctx.ellipse(0, -e.h * 0.45, e.w * 0.45, e.h * 0.45, 0, 0, Math.PI * 2);
-      ctx.fill();
+    if (e.stunTimer > 0) {
+      ctx.fillStyle = '#fbbf24';
+      ctx.fillRect(-5, -e.h - 6, 2, 2);
+      ctx.fillRect(3, -e.h - 6, 2, 2);
     }
 
     ctx.restore();
