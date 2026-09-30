@@ -7,9 +7,6 @@
   box-sizing: border-box;
   margin: 0;
   padding: 0;
-  user-select: none;
-  -webkit-user-select: none;
-  -webkit-touch-callout: none;
 }
 
 html, body {
@@ -21,7 +18,7 @@ html, body {
   overflow: hidden;
   overscroll-behavior: none;
   -webkit-overflow-scrolling: auto;
-  touch-action: none;
+  touch-action: auto;
 }
 
 body {
@@ -262,6 +259,10 @@ body {
   object-fit: contain;
   image-rendering: pixelated;
   image-rendering: crisp-edges;
+  touch-action: none;
+  user-select: none;
+  -webkit-user-select: none;
+  -webkit-touch-callout: none;
 }
 
 /* スタミナゲージはボタン撤廃に伴い非表示 */
@@ -623,7 +624,7 @@ body {
 .stat-row strong { color: #f1f5f9; font-size: 14px; }
 
 /* ========================================================
-   スマホ用：下部コントローラーゾーン＆ジョイスティック
+   スマートフォン用：仮想ジョイスティック
    ======================================================== */
 #mobile-controller-zone {
   display: none; /* デスクトップ環境では非表示 */
@@ -1217,7 +1218,7 @@ body {
 }
 
 /* ========================================================
-   スマホ縦持ち（Portrait / 幅899px以下）完全最適化レイアウト
+   タブレット・狭幅向け旧レイアウト（スマートフォンは下部の横画面ルールを使用）
    画面上部：大迫力HUD / 画面中央：16:9ゲーム画面 / 画面下部：独立コントローラー
    ======================================================== */
 @media screen and (max-width: 899px) {
@@ -1726,10 +1727,9 @@ body {
   background: rgba(234, 179, 8, 0.2) !important;
 }
 
-/* ブラウザのFullscreen API発動時 ＆ スマホ全画面最適化スタイル */
+/* ブラウザのFullscreen API発動時の配置 */
 :fullscreen,
-:-webkit-full-screen,
-body.pseudo-fullscreen {
+:-webkit-full-screen {
   background-color: #000000 !important;
   width: 100vw !important;
   height: 100dvh !important;
@@ -1740,8 +1740,7 @@ body.pseudo-fullscreen {
 }
 
 :fullscreen #game-container,
-:-webkit-full-screen #game-container,
-body.pseudo-fullscreen #game-container {
+:-webkit-full-screen #game-container {
   width: 100vw !important;
   height: 100dvh !important;
   max-width: 100vw !important;
@@ -1759,8 +1758,7 @@ body.pseudo-fullscreen #game-container {
 }
 
 :fullscreen #canvas-wrapper,
-:-webkit-full-screen #canvas-wrapper,
-body.pseudo-fullscreen #canvas-wrapper {
+:-webkit-full-screen #canvas-wrapper {
   width: 100% !important;
   height: 100% !important;
   max-height: 100dvh !important;
@@ -1774,8 +1772,7 @@ body.pseudo-fullscreen #canvas-wrapper {
 }
 
 :fullscreen #gameCanvas,
-:-webkit-full-screen #gameCanvas,
-body.pseudo-fullscreen #gameCanvas {
+:-webkit-full-screen #gameCanvas {
   width: 100% !important;
   height: 100% !important;
   max-width: 100vw !important;
@@ -1786,8 +1783,7 @@ body.pseudo-fullscreen #gameCanvas {
 
 /* フルスクリーン時（PC手動全画面またはモバイル時）の上部ヘッダー配置 */
 :fullscreen #ui-header,
-:-webkit-full-screen #ui-header,
-body.pseudo-fullscreen #ui-header {
+:-webkit-full-screen #ui-header {
   position: absolute !important;
   top: calc(env(safe-area-inset-top, 0px) + 8px) !important;
   left: 50% !important;
@@ -1804,8 +1800,7 @@ body.pseudo-fullscreen #ui-header {
 }
 
 :fullscreen #joystick-zone,
-:-webkit-full-screen #joystick-zone,
-body.pseudo-fullscreen #joystick-zone {
+:-webkit-full-screen #joystick-zone {
   bottom: calc(env(safe-area-inset-bottom, 0px) + 8px) !important;
   right: calc(env(safe-area-inset-right, 0px) + 12px) !important;
   width: 96px !important;
@@ -1871,4 +1866,214 @@ body.pseudo-fullscreen #joystick-zone {
   to { opacity: 1; transform: translate(-50%, 0); }
 }
 
+/* 横画面専用のスマートフォン配置。古い縦持ち用ルールを最後に統一して上書きする。 */
+body.mobile-landscape {
+  position: fixed !important;
+  inset: 0 !important;
+  width: 100vw !important;
+  height: 100dvh !important;
+  min-height: 0 !important;
+  overflow: hidden !important;
+  background: #080c10 !important;
+  touch-action: auto !important;
+}
 
+body.mobile-landscape #game-container {
+  position: fixed !important;
+  inset: 0 !important;
+  display: grid !important;
+  grid-template-columns: minmax(0, 1fr) !important;
+  grid-template-rows: 48px minmax(0, 1fr) !important;
+  justify-items: center !important;
+  align-items: center !important;
+  gap: 4px !important;
+  width: 100vw !important;
+  height: 100dvh !important;
+  max-width: none !important;
+  max-height: none !important;
+  min-height: 0 !important;
+  padding: max(4px, env(safe-area-inset-top, 0px)) max(8px, env(safe-area-inset-right, 0px)) max(4px, env(safe-area-inset-bottom, 0px)) max(8px, env(safe-area-inset-left, 0px)) !important;
+  margin: 0 !important;
+  overflow: hidden !important;
+  border: 0 !important;
+  border-radius: 0 !important;
+  box-shadow: none !important;
+  background: #080c10 !important;
+}
+
+body.mobile-landscape #ui-header {
+  position: relative !important;
+  inset: auto !important;
+  display: flex !important;
+  grid-row: 1 !important;
+  width: 100% !important;
+  min-width: 0 !important;
+  min-height: 48px !important;
+  height: 48px !important;
+  margin: 0 !important;
+  padding: 2px 6px !important;
+  gap: 4px !important;
+  overflow: hidden !important;
+  border: 1px solid #38bdf8 !important;
+  border-radius: 8px !important;
+  background: rgba(15, 23, 42, 0.96) !important;
+  box-shadow: none !important;
+  transform: none !important;
+  z-index: 30 !important;
+}
+
+body.mobile-landscape .header-left,
+body.mobile-landscape .header-right {
+  display: flex !important;
+  min-width: 0 !important;
+  align-items: center !important;
+  gap: 4px !important;
+}
+
+body.mobile-landscape .header-left { flex: 0 1 auto !important; }
+body.mobile-landscape .header-right { flex: 1 1 auto !important; justify-content: flex-end !important; }
+body.mobile-landscape .stage-badge {
+  max-width: clamp(72px, 14vw, 122px) !important;
+  overflow: hidden !important;
+  text-overflow: ellipsis !important;
+  font-size: 10px !important;
+  padding: 4px 6px !important;
+}
+body.mobile-landscape .level-box { min-width: 60px !important; max-width: 100px !important; gap: 3px !important; }
+body.mobile-landscape .level-badge { font-size: 10px !important; }
+body.mobile-landscape .exp-text { font-size: 9px !important; }
+body.mobile-landscape .hp-box { min-width: 78px !important; gap: 3px !important; }
+body.mobile-landscape .hp-text { font-size: 10px !important; white-space: nowrap !important; }
+body.mobile-landscape .status-box { min-width: 42px !important; padding: 1px 3px !important; }
+body.mobile-landscape .status-box .label { font-size: 9px !important; }
+body.mobile-landscape .status-box .value { font-size: 12px !important; }
+body.mobile-landscape .ui-btn {
+  min-width: 44px !important;
+  min-height: 44px !important;
+  padding: 3px 5px !important;
+  font-size: 10px !important;
+  line-height: 1.1 !important;
+  white-space: nowrap !important;
+}
+
+body.mobile-landscape #canvas-wrapper {
+  grid-row: 2 !important;
+  align-self: stretch !important;
+  justify-self: center !important;
+  width: min(calc(100vw - 16px - env(safe-area-inset-left, 0px) - env(safe-area-inset-right, 0px)), calc((100dvh - 64px - env(safe-area-inset-top, 0px) - env(safe-area-inset-bottom, 0px)) * 16 / 9)) !important;
+  max-width: 100vw !important;
+  min-width: 0 !important;
+  height: auto !important;
+  max-height: 100% !important;
+  min-height: 0 !important;
+  aspect-ratio: 16 / 9 !important;
+  flex: 0 1 auto !important;
+  margin: 0 !important;
+  overflow: hidden !important;
+  border: 1px solid #334155 !important;
+  border-radius: 8px !important;
+  box-shadow: 0 4px 16px rgba(0, 0, 0, 0.65) !important;
+  background: #000 !important;
+}
+
+body.mobile-landscape.game-title #game-container {
+  grid-template-rows: minmax(0, 1fr) !important;
+}
+body.mobile-landscape.game-title #canvas-wrapper {
+  grid-row: 1 !important;
+  width: min(calc(100vw - 16px - env(safe-area-inset-left, 0px) - env(safe-area-inset-right, 0px)), calc((100dvh - env(safe-area-inset-top, 0px) - env(safe-area-inset-bottom, 0px)) * 16 / 9)) !important;
+}
+
+body.mobile-landscape #gameCanvas {
+  display: block !important;
+  width: 100% !important;
+  height: 100% !important;
+  max-width: 100% !important;
+  max-height: 100% !important;
+  object-fit: contain !important;
+}
+
+body.mobile-landscape #mobile-controller-zone {
+  position: absolute !important;
+  inset: 0 !important;
+  display: block !important;
+  width: 100% !important;
+  height: 100% !important;
+  padding: 0 !important;
+  pointer-events: none !important;
+  touch-action: none !important;
+  background: transparent !important;
+  border: 0 !important;
+  box-shadow: none !important;
+}
+
+body.mobile-landscape #joystick-zone {
+  position: absolute !important;
+  right: max(12px, env(safe-area-inset-right, 0px)) !important;
+  bottom: max(12px, env(safe-area-inset-bottom, 0px)) !important;
+  width: clamp(88px, 13vw, 108px) !important;
+  height: clamp(88px, 13vw, 108px) !important;
+  margin: 0 !important;
+  opacity: 0.88 !important;
+  pointer-events: auto !important;
+  touch-action: none !important;
+}
+
+body.mobile-landscape #joystick-base { width: 100% !important; height: 100% !important; }
+body.mobile-landscape #joystick-knob { width: 48% !important; height: 48% !important; }
+body.mobile-landscape .controller-guide-text { display: none !important; }
+body.mobile-portrait #mobile-controller-zone { display: none !important; }
+
+#orientation-overlay {
+  position: fixed;
+  inset: 0;
+  z-index: 10000;
+  display: grid;
+  place-items: center;
+  padding: max(20px, env(safe-area-inset-top, 0px)) max(20px, env(safe-area-inset-right, 0px)) max(20px, env(safe-area-inset-bottom, 0px)) max(20px, env(safe-area-inset-left, 0px));
+  background: rgba(3, 7, 18, 0.96);
+  color: #f1f5f9;
+  text-align: center;
+  touch-action: pan-y pinch-zoom;
+}
+
+#orientation-overlay.hidden { display: none !important; }
+.orientation-card {
+  width: min(100%, 460px);
+  padding: 28px 24px;
+  border: 2px solid #38bdf8;
+  border-radius: 18px;
+  background: linear-gradient(155deg, #16202c, #0f172a);
+  box-shadow: 0 16px 42px rgba(0, 0, 0, 0.6);
+}
+.orientation-icon { color: #fbbf24; font-size: 52px; line-height: 1; }
+.orientation-card h1 { margin: 12px 0; color: #fbbf24; font-size: clamp(22px, 6vw, 30px); line-height: 1.35; }
+.orientation-card p { color: #f1f5f9; font-size: 16px; line-height: 1.6; }
+#orientation-fullscreen-btn {
+  min-height: 48px;
+  margin: 20px 0 12px;
+  padding: 10px 20px;
+  border: 2px solid #fca5a5;
+  border-radius: 10px;
+  background: #dc2626;
+  color: #fff;
+  font: inherit;
+  font-weight: 800;
+}
+.orientation-card .orientation-note { color: #cbd5e1; font-size: 14px; }
+
+#tutorial-overlay .overlay-card { max-height: calc(100% - 24px); overflow-y: auto; overscroll-behavior: contain; touch-action: pan-y pinch-zoom; }
+#tutorial-overlay p, #tutorial-overlay h2, #result-overlay p { user-select: text; -webkit-user-select: text; }
+#safari-fullscreen-toast { z-index: 10020; width: min(92vw, 620px); border-radius: 12px; font-size: 14px; line-height: 1.5; }
+#safari-fullscreen-toast .toast-close-btn { min-height: 40px; padding: 6px 12px; font-size: 13px; }
+
+button:focus-visible, [tabindex]:focus-visible { outline: 3px solid #fff; outline-offset: 3px; }
+button, #gameCanvas, #joystick-zone { user-select: none; -webkit-user-select: none; -webkit-touch-callout: none; }
+@media (max-width: 740px) and (orientation: landscape) {
+  body.mobile-landscape .stage-badge { display: none !important; }
+  body.mobile-landscape .header-left { flex: 0 0 auto !important; }
+  body.mobile-landscape .header-right { flex: 1 1 auto !important; }
+}
+@media (prefers-reduced-motion: reduce) {
+  *, *::before, *::after { animation-duration: .01ms !important; animation-iteration-count: 1 !important; scroll-behavior: auto !important; transition-duration: .01ms !important; }
+}

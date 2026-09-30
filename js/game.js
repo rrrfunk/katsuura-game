@@ -48,9 +48,19 @@ class AsaichiGame {
     this.tandemRushes = []; // 走行中のタンデムバイクリスト
     this.mikoshiRushes = []; // 走行中の勝浦神輿軍団リスト
     this.assistCutin = null; // お助けキャラ格ゲー風必殺技カットイン状態
+    this.assistCutinQueue = [];
     this.assistCutinSeen = { tandem: false, mikoshi: false, noraneko: false }; // 各アイテム初回取得時のみカットイン発動
+    this.isMobilePhoneActive = false;
+    this.mobilePortrait = false;
+    this.orientationResumeRequired = false;
+    this.runId = 0;
+    this.resultFinalizedForRun = false;
+    this.victoryClearTimerRemaining = 0;
+    this.lastEnemyDropSec = null;
+    this.hordeTimer = 0;
     this.kittens = []; // ミケについてくる子猫リスト
     this.lightningTimer = 0; // 電撃タイマー
+    this.lightningBolts = [];
     this.levelUpBanner = null; // レベルアップ自動通知バナー
 
     // 操作入力（PCマウス操作 ＆ スマホ右下バーチャルスティック）
@@ -61,6 +71,7 @@ class AsaichiGame {
     // ゲーム状態
     this.state = 'TITLE'; // 'TITLE' | 'PLAYING' | 'LEVELUP' | 'RESULT'
     this.survivalTime = 0;
+    this.simulationTime = 0;
     this.killCount = 0;
     this.gold = 0;
     this.screenShake = 0;
@@ -90,6 +101,7 @@ class AsaichiGame {
       nextExp: 8,
       invincibleTimer: 0,
       speedBuffTimer: 0,
+      speedSmokeTimer: 0,
       shieldBuffTimer: 0,
       knockbackVx: 0,
       knockbackVy: 0,
@@ -155,10 +167,147 @@ class AsaichiGame {
     this.initEvents();
   }
 
+  isMobilePhone() {
+    const touchScreen = (navigator.maxTouchPoints || 0) > 0;
+    const screenWidth = window.screen?.width || window.innerWidth;
+    const screenHeight = window.screen?.height || window.innerHeight;
+    return touchScreen && Math.min(screenWidth, screenHeight) <= 600;
+  }
+
+  isLandscapeViewport() {
+    const orientationType = window.screen?.orientation?.type;
+    if (orientationType) return orientationType.startsWith('landscape');
+    return window.innerWidth > window.innerHeight;
+  }
+
+  clearInputState() {
+    this.cancelInputPointers?.();
+    this.keys = Object.create(null);
+    this.mouseInput.active = false;
+    this.mouseInput.isDown = false;
+    this.joystickVector.x = 0;
+    this.joystickVector.y = 0;
+    this.touchDash = false;
+  }
+
+  getCanvasPoint(clientX, clientY) {
+    const rect = this.canvas.getBoundingClientRect();
+    if (rect.width <= 0 || rect.height <= 0) return null;
+
+    const scale = Math.min(rect.width / this.canvas.width, rect.height / this.canvas.height);
+    const contentWidth = this.canvas.width * scale;
+    const contentHeight = this.canvas.height * scale;
+    const offsetX = (rect.width - contentWidth) / 2;
+    const offsetY = (rect.height - contentHeight) / 2;
+    const x = (clientX - rect.left - offsetX) / scale;
+    const y = (clientY - rect.top - offsetY) / scale;
+    if (x < 0 || x > this.canvas.width || y < 0 || y > this.canvas.height) return null;
+    return { x, y };
+  }
+
+  isGameInputBlocked() {
+    const tutorialOverlay = document.getElementById('tutorial-overlay');
+    return this.state !== 'PLAYING' || document.hidden || this.mobilePortrait || this.orientationResumeRequired ||
+      !!(tutorialOverlay && !tutorialOverlay.classList.contains('hidden'));
+  }
+
+  refreshPresentationState() {
+    this.isMobilePhoneActive = this.isMobilePhone();
+    this.mobilePortrait = this.isMobilePhoneActive && !this.isLandscapeViewport();
+    if (this.mobilePortrait && this.state === 'PLAYING') this.orientationResumeRequired = true;
+    document.body.classList.toggle('mobile-phone', this.isMobilePhoneActive);
+    document.body.classList.toggle('mobile-landscape', this.isMobilePhoneActive && !this.mobilePortrait);
+    document.body.classList.toggle('mobile-portrait', this.mobilePortrait);
+    document.body.classList.toggle('game-title', this.state === 'TITLE');
+
+    const showOrientationOverlay = this.isMobilePhoneActive &&
+      ((this.mobilePortrait && this.state !== 'RESULT') || this.orientationResumeRequired);
+    const orientationOverlay = document.getElementById('orientation-overlay');
+    orientationOverlay?.classList.toggle('hidden', !showOrientationOverlay);
+    const orientationTitle = document.getElementById('orientation-title');
+    const orientationCopy = document.getElementById('orientation-copy');
+    const orientationButton = document.getElementById('orientation-fullscreen-btn');
+    if (showOrientationOverlay) {
+      const needsResume = !this.mobilePortrait && this.orientationResumeRequired;
+      if (orientationTitle) orientationTitle.textContent = needsResume ? '横向きに戻ったよ' : '端末を横向きにしてね';
+      if (orientationCopy) {
+        orientationCopy.textContent = needsResume
+          ? 'ゲームの状態はそのまま止めてあるよ。準備ができたら「続ける」を押してね。'
+          : this.state === 'PLAYING'
+            ? '戦闘を一時停止したよ。横向きに戻すと、続きから遊べるよ。'
+            : 'このゲームはスマートフォンを横にして遊べるよ。横向きになったら、タイトルの「出撃」から始めてね。';
+      }
+      if (orientationButton) orientationButton.textContent = needsResume ? '続ける' : '全画面表示を試す';
+    }
+    const restartButton = document.getElementById('restart-btn');
+    if (restartButton) {
+      restartButton.disabled = this.state === 'RESULT' && this.mobilePortrait;
+      restartButton.textContent = restartButton.disabled
+        ? '端末を横向きにして再挑戦'
+        : 'もう一度リベンジするニャ！';
+    }
+    if (this.mobilePortrait) this.clearInputState();
+
+    const standalone = window.matchMedia?.('(display-mode: standalone)').matches ||
+      window.matchMedia?.('(display-mode: fullscreen)').matches || navigator.standalone === true;
+    for (const button of [document.getElementById('fullscreen-btn'), document.getElementById('title-fullscreen-btn')]) {
+      if (button) button.hidden = !!standalone;
+    }
+
+    const nativeFullscreen = !!(document.fullscreenElement || document.webkitFullscreenElement ||
+      document.mozFullScreenElement || document.msFullscreenElement);
+    const label = nativeFullscreen ? '✖ 縮小' : '⛶ 全画面';
+    const headerButton = document.getElementById('fullscreen-btn');
+    const titleButton = document.getElementById('title-fullscreen-btn');
+    if (headerButton) headerButton.textContent = label;
+    if (titleButton) titleButton.textContent = label;
+  }
+
+  resumeAfterOrientation() {
+    if (this.mobilePortrait || !this.orientationResumeRequired) return false;
+    this.orientationResumeRequired = false;
+    this.refreshPresentationState();
+    return true;
+  }
+
+  openTutorial() {
+    this.clearInputState();
+    const fromTitle = this.state === 'TITLE';
+    const startButton = document.getElementById('btn-tutorial-start');
+    const backButton = document.getElementById('btn-tutorial-back');
+    if (startButton) startButton.textContent = fromTitle ? '説明を閉じて出撃するニャ！（START）' : 'ゲームに戻る';
+    if (backButton) backButton.textContent = fromTitle ? '閉じる' : 'タイトルへ戻る';
+    document.getElementById('tutorial-overlay')?.classList.remove('hidden');
+  }
+
+  returnToTitle() {
+    if (this.state !== 'PLAYING') return;
+    this.runId++;
+    this.resultFinalizedForRun = false;
+    this.state = 'TITLE';
+    this.isVictoryClear = false;
+    this.victoryClearTimerRemaining = 0;
+    this.orientationResumeRequired = false;
+    this.assistCutin = null;
+    this.assistCutinQueue = [];
+    this.eventState = 'NONE';
+    this.clearInputState();
+    this.sound.stopBGM();
+    document.getElementById('tutorial-overlay')?.classList.add('hidden');
+    document.getElementById('result-overlay')?.classList.add('hidden');
+    document.getElementById('levelup-overlay')?.classList.add('hidden');
+    document.getElementById('ui-header')?.classList.add('hidden');
+    const titleOverlay = document.getElementById('title-overlay');
+    titleOverlay?.classList.remove('hidden');
+    if (titleOverlay) titleOverlay.style.display = '';
+    this.refreshPresentationState();
+  }
+
   loadAssets() {
     let loaded = 0;
+    let failed = 0;
     // バージョン固定キャッシュキー（アクセスごとの全画像再ダウンロードを防ぎ、ブラウザキャッシュを即座に効かせる！）
-    const cacheKey = '20260929_webp_lightweight_v1';
+    const cacheKey = '20260930_pdca_v2';
 
     const loadingOverlay = document.getElementById('loading-overlay');
     const barFill = document.getElementById('loading-bar-fill');
@@ -168,7 +317,8 @@ class AsaichiGame {
     const titleBgImg = new Image();
 
     const list = [
-      { img: titleBgImg,                     src: `assets/title_bg.webp?v=${cacheKey}` },
+      // CSS背景と同じURLを使い、タイトル絵の二重転送を避ける。
+      { img: titleBgImg,                     src: 'assets/title_bg.webp?v=20260929_webp_lightweight_v1' },
       { img: this.images.mapHorizontal,      src: `assets/map_horizontal.webp?v=${cacheKey}` },
       { img: this.images.mapPeace,           src: `assets/map_peace.webp?v=${cacheKey}` },
       { img: this.images.mapForeground,      src: `assets/map_foreground.webp?v=${cacheKey}` },
@@ -200,6 +350,8 @@ class AsaichiGame {
         if (statusText) statusText.textContent = '朝市の屋台を設営中ニャ... ⛩️';
       } else if (pct < 100) {
         if (statusText) statusText.textContent = 'ミケがお出かけ準備中ニャ... 🐾';
+      } else if (failed > 0) {
+        if (statusText) statusText.textContent = `画像 ${failed} 点を読み込めなかったため、代替表示で起動します。`;
       } else {
         if (statusText) statusText.textContent = '仕入れ完了！出撃準備完了ニャ！✨';
       }
@@ -212,7 +364,9 @@ class AsaichiGame {
       this.assetsLoaded = true;
       if (barFill) barFill.style.width = '100%';
       if (pctText) pctText.textContent = '100%';
-      if (statusText) statusText.textContent = '仕入れ完了！出撃準備完了ニャ！✨';
+      if (statusText) statusText.textContent = failed > 0
+        ? `画像 ${failed} 点を読み込めなかったため、代替表示で起動します。`
+        : '仕入れ完了！出撃準備完了ニャ！✨';
       this.prepareTransparentTandemBike();
       setTimeout(() => {
         if (loadingOverlay) {
@@ -224,7 +378,13 @@ class AsaichiGame {
       }, 350);
     };
 
-    const check = () => {
+    const settleAsset = (item, succeeded, reason = '') => {
+      if (item.isDone) return;
+      item.isDone = true;
+      if (!succeeded) {
+        failed++;
+        console.warn('Asset unavailable; fallback will be used:', item.src, reason);
+      }
       loaded++;
       updateProgress();
       if (loaded >= total) {
@@ -232,30 +392,23 @@ class AsaichiGame {
       }
     };
 
-    // ネットワーク超低速時の安全フェイルセーフ（最大6秒で強制起動）
+    // 読込が長引いた画像は失敗として数え、成功表示をせず代替表示で起動する。
     setTimeout(() => {
       if (!isFinished) {
-        console.warn('Asset loading timeout reached, forcing start.');
-        finishLoading();
+        list.forEach(item => settleAsset(item, false, 'timeout'));
       }
     }, 6000);
 
     list.forEach(item => {
-      let isDone = false;
-      const onDone = () => {
-        if (isDone) return;
-        isDone = true;
-        check();
-      };
-      item.img.onload = onDone;
+      item.isDone = false;
+      item.img.onload = () => settleAsset(item, true);
       item.img.onerror = () => {
-        console.warn('Asset failed to load:', item.src);
-        onDone();
+        settleAsset(item, false, 'load-error');
       };
       item.img.src = item.src;
       // すでにキャッシュ等でロード完了している場合
       if (item.img.complete && item.img.naturalWidth > 0) {
-        onDone();
+        settleAsset(item, true);
       }
     });
   }
@@ -345,16 +498,36 @@ class AsaichiGame {
     entity.y = bestY;
   }
 
-  // キーボード・UIイベント
+  // 入力・表示・描画ループを責務別の登録処理へ分ける
   initEvents() {
+    this.initKeyboardEvents();
+    this.initPresentationEvents();
+    this.initPointerEvents();
+    this.initJoystickEvents();
+    this.startMainLoop();
+  }
+
+  initKeyboardEvents() {
     window.addEventListener('keydown', (e) => {
+      if (e.code === 'Escape') {
+        const tutorial = document.getElementById('tutorial-overlay');
+        if (tutorial && !tutorial.classList.contains('hidden')) {
+          tutorial.classList.add('hidden');
+          this.clearInputState();
+          return;
+        }
+      }
+      const targetIsControl = e.target instanceof Element && !!e.target.closest('button, a, input, textarea, select, [contenteditable="true"]');
+      if (targetIsControl) return;
+      if (this.state === 'PLAYING' && this.isGameInputBlocked()) return;
+
       this.keys[e.code] = true;
       if (e.key) {
         this.keys[e.key.toLowerCase()] = true;
         this.keys[e.key] = true;
       }
 
-      if (['Space', 'ArrowUp', 'ArrowDown', 'ArrowLeft', 'ArrowRight'].includes(e.code)) {
+      if (this.state === 'PLAYING' && ['Space', 'ArrowUp', 'ArrowDown', 'ArrowLeft', 'ArrowRight'].includes(e.code)) {
         e.preventDefault();
       }
 
@@ -394,152 +567,88 @@ class AsaichiGame {
         this.keys[e.key] = false;
       }
     });
+  }
 
+  initPresentationEvents() {
     // ========================================================
-    // 全画面表示（フルスクリーン）制御（iOS Safari & Android両対応）
+    // 全画面表示：実際のAPI成功時だけ全画面として扱う
     // ========================================================
-    const isIOS = /iPad|iPhone|iPod/.test(navigator.userAgent) || 
+    const isIOS = /iPad|iPhone|iPod/.test(navigator.userAgent) ||
       (navigator.platform === 'MacIntel' && navigator.maxTouchPoints > 1);
-
-    const showSafariToast = () => {
-      if (!isIOS) return;
+    const isNativeFullscreen = () => !!(document.fullscreenElement || document.webkitFullscreenElement ||
+      document.mozFullScreenElement || document.msFullscreenElement);
+    const showFullscreenHelp = () => {
       const toast = document.getElementById('safari-fullscreen-toast');
       if (!toast) return;
+      const text = toast.querySelector('.toast-text');
+      if (text) {
+        text.textContent = isIOS
+          ? 'iPhone Chromeのタブではバーを隠せない場合があります。共有ボタンから「ホーム画面に追加」し、アプリとして起動できる場合は追加アイコンから開くとバーなしで遊べます。'
+          : 'このブラウザはページの全画面表示に対応していません。画面の表示領域に合わせて遊べます。';
+      }
       toast.classList.remove('hidden');
       if (this.safariToastTimer) clearTimeout(this.safariToastTimer);
-      this.safariToastTimer = setTimeout(() => {
-        toast.classList.add('hidden');
-      }, 5000);
+      this.safariToastTimer = setTimeout(() => toast.classList.add('hidden'), 9000);
+    };
+    const tryEnterFullscreen = () => {
+      const appMode = window.matchMedia?.('(display-mode: standalone)').matches ||
+        window.matchMedia?.('(display-mode: fullscreen)').matches || navigator.standalone === true;
+      if (appMode || isNativeFullscreen()) return;
+
+      // ページ全体を全画面対象にし、ゲーム外に置いた回転案内・失敗案内も表示できるようにする。
+      const target = document.documentElement;
+      const request = target?.requestFullscreen || target?.webkitRequestFullscreen ||
+        target?.mozRequestFullScreen || target?.msRequestFullscreen;
+      if (!request) {
+        showFullscreenHelp();
+        return;
+      }
+
+      let fullscreenPromise;
+      try {
+        fullscreenPromise = request.call(target, { navigationUI: 'hide' });
+      } catch (firstError) {
+        try { fullscreenPromise = request.call(target); }
+        catch (error) { showFullscreenHelp(); return; }
+      }
+
+      try { window.screen?.orientation?.lock?.('landscape')?.catch(() => {}); } catch (error) {}
+      Promise.resolve(fullscreenPromise).then(() => {
+        setTimeout(() => {
+          this.refreshPresentationState();
+          if (!isNativeFullscreen()) showFullscreenHelp();
+        }, 250);
+      }).catch(() => showFullscreenHelp());
+    };
+    const toggleFullscreen = () => {
+      if (isNativeFullscreen()) {
+        const exit = document.exitFullscreen || document.webkitExitFullscreen ||
+          document.mozCancelFullScreen || document.msExitFullscreen;
+        try { Promise.resolve(exit?.call(document)).then(() => this.refreshPresentationState()).catch(() => {}); }
+        catch (error) { this.refreshPresentationState(); }
+      } else {
+        tryEnterFullscreen();
+      }
     };
 
+    document.addEventListener('fullscreenchange', () => this.refreshPresentationState());
+    document.addEventListener('webkitfullscreenchange', () => this.refreshPresentationState());
+    document.addEventListener('mozfullscreenchange', () => this.refreshPresentationState());
+    document.addEventListener('MSFullscreenChange', () => this.refreshPresentationState());
     document.getElementById('btn-close-safari-toast')?.addEventListener('click', (e) => {
       e.stopPropagation();
-      const toast = document.getElementById('safari-fullscreen-toast');
-      if (toast) toast.classList.add('hidden');
+      document.getElementById('safari-fullscreen-toast')?.classList.add('hidden');
     });
 
-    const isFullscreenActive = () => {
-      const doc = document;
-      const apiFs = !!(doc.fullscreenElement || doc.webkitFullscreenElement || doc.mozFullScreenElement || doc.msFullscreenElement);
-      const pseudoFs = !!document.body?.classList?.contains('pseudo-fullscreen');
-      return apiFs || pseudoFs;
-    };
-
-    const updateFsButtons = () => {
-      const isFs = isFullscreenActive();
-      const fsBtn = document.getElementById('fullscreen-btn');
-      const titleFsBtn = document.getElementById('title-fullscreen-btn');
-      const label = isFs ? '✖ 縮小' : '⛶ 全画面';
-      if (fsBtn) fsBtn.textContent = label;
-      if (titleFsBtn) titleFsBtn.textContent = label;
-    };
-
-    const toggleFullscreen = () => {
-      const isFs = isFullscreenActive();
-      const doc = document;
-
-      if (!isFs) {
-        // 1. 擬似フルスクリーンクラスを即座に付与（CSSで fixed 100vw x 100dvh に完全フィット！）
-        document.body?.classList?.add('pseudo-fullscreen');
-
-        // 2. Android Chrome / PC 向けのネイティブ Fullscreen API
-        const el = document.getElementById('game-container') || document.documentElement;
-        const req = el?.requestFullscreen || el?.webkitRequestFullscreen || el?.mozRequestFullScreen || el?.msRequestFullscreen;
-        if (req) {
-          try {
-            const p = req.call(el);
-            if (p && p.then) {
-              p.then(() => {
-                if (window.screen && window.screen.orientation && window.screen.orientation.lock) {
-                  window.screen.orientation.lock('landscape').catch(() => {});
-                }
-              }).catch(() => {});
-            }
-          } catch (err) {}
-        }
-
-        // 3. iOS Safari の場合、案内トーストを表示
-        if (isIOS) {
-          showSafariToast();
-        }
-
-        // 4. アドレスバー畳み（モバイルスクロールトリガー）
-        try {
-          window.scrollTo(0, 0);
-          setTimeout(() => window.scrollTo(0, 1), 100);
-          setTimeout(() => window.scrollTo(0, 0), 250);
-        } catch (e) {}
-
-        updateFsButtons();
-      } else {
-        // 全画面解除
-        document.body?.classList?.remove('pseudo-fullscreen');
-        const exit = doc.exitFullscreen || doc.webkitExitFullscreen || doc.mozCancelFullScreen || doc.msExitFullscreen;
-        if (exit) {
-          try {
-            const p = exit.call(doc);
-            if (p && p.then) {
-              p.then(updateFsButtons).catch(() => {});
-            }
-          } catch (err) {}
-        }
-        updateFsButtons();
-      }
-    };
-
-    document.addEventListener('fullscreenchange', updateFsButtons);
-    document.addEventListener('webkitfullscreenchange', updateFsButtons);
-    document.addEventListener('mozfullscreenchange', updateFsButtons);
-    document.addEventListener('MSFullscreenChange', updateFsButtons);
-
-    const isMobileDevice = () => {
-      return /Android|iPhone|iPad|iPod/i.test(navigator.userAgent) || 
-             (navigator.maxTouchPoints > 1 && window.innerWidth <= 1024);
-    };
-
-    const tryAutoFullscreen = () => {
-      // PCブラウザでは勝手に全画面化しない！スマホ・モバイル時のみ全画面化を試みる
-      if (!isMobileDevice()) return;
-
-      // 画面全体フィット
-      document.body?.classList?.add('pseudo-fullscreen');
-      const el = document.getElementById('game-container') || document.documentElement;
-      const req = el?.requestFullscreen || el?.webkitRequestFullscreen || el?.mozRequestFullScreen || el?.msRequestFullscreen;
-      if (req) {
-        try {
-          const p = req.call(el);
-          if (p && p.catch) p.catch(() => {});
-        } catch (e) {}
-      }
-      if (window.screen && window.screen.orientation && window.screen.orientation.lock) {
-        window.screen.orientation.lock('landscape').catch(() => {});
-      }
-      if (isIOS && window.innerWidth > window.innerHeight) {
-        showSafariToast();
-      }
-      try {
-        window.scrollTo(0, 0);
-        setTimeout(() => window.scrollTo(0, 1), 100);
-        setTimeout(() => window.scrollTo(0, 0), 250);
-      } catch (e) {}
-      updateFsButtons();
-    };
-
-    // 画面回転監視（スマホを横持ちにしたら自動でフルスクリーンモード適用。PCでは発動しない！）
-    const handleOrientation = () => {
-      if (!isMobileDevice()) return;
-      const isLandscape = window.innerWidth > window.innerHeight;
-      if (isLandscape && window.innerWidth <= 960) {
-        document.body?.classList?.add('pseudo-fullscreen');
-        updateFsButtons();
-        try {
-          window.scrollTo(0, 1);
-        } catch(e) {}
-      }
-    };
-    window.addEventListener('resize', handleOrientation);
-    window.addEventListener('orientationchange', handleOrientation);
-    handleOrientation(); // 初回実行
+    const handleOrientation = () => this.refreshPresentationState();
+    window.addEventListener('resize', handleOrientation, { passive: true });
+    window.addEventListener('orientationchange', handleOrientation, { passive: true });
+    window.visualViewport?.addEventListener('resize', handleOrientation, { passive: true });
+    document.addEventListener('visibilitychange', () => {
+      if (document.hidden) this.clearInputState();
+    });
+    window.addEventListener('blur', () => this.clearInputState());
+    this.refreshPresentationState();
 
     // UIボタン＆タイトル画面タップ
     const fsBtn = document.getElementById('fullscreen-btn');
@@ -560,34 +669,35 @@ class AsaichiGame {
 
     document.getElementById('btn-quick-start')?.addEventListener('click', (e) => {
       e.stopPropagation();
-      tryAutoFullscreen();
+      tryEnterFullscreen();
       this.startGame();
     });
-    document.getElementById('title-overlay')?.addEventListener('click', (e) => {
-      if (this.state === 'TITLE') {
-        tryAutoFullscreen();
-        this.startGame();
-      }
+    document.getElementById('orientation-fullscreen-btn')?.addEventListener('click', (e) => {
+      e.stopPropagation();
+      if (this.resumeAfterOrientation()) return;
+      tryEnterFullscreen();
+      try { window.screen?.orientation?.lock?.('landscape')?.catch(() => {}); } catch (error) {}
     });
     document.getElementById('btn-view-help')?.addEventListener('click', () => {
-      document.getElementById('tutorial-overlay').classList.remove('hidden');
+      this.openTutorial();
     });
     document.getElementById('help-btn')?.addEventListener('click', () => {
-      document.getElementById('tutorial-overlay').classList.remove('hidden');
+      this.openTutorial();
     });
     document.getElementById('btn-tutorial-start')?.addEventListener('click', () => {
       document.getElementById('tutorial-overlay').classList.add('hidden');
       if (this.state === 'TITLE') {
-        tryAutoFullscreen();
+        tryEnterFullscreen();
         this.startGame();
       }
     });
     document.getElementById('btn-tutorial-back')?.addEventListener('click', () => {
       document.getElementById('tutorial-overlay').classList.add('hidden');
+      if (this.state === 'PLAYING') this.returnToTitle();
     });
     document.getElementById('restart-btn')?.addEventListener('click', (e) => {
       e.stopPropagation();
-      tryAutoFullscreen();
+      tryEnterFullscreen();
       this.startGame();
     });
 
@@ -597,21 +707,22 @@ class AsaichiGame {
       const on = this.sound.toggleSound();
       soundBtn.textContent = on ? '🔊 BGM ON' : '🔇 BGM OFF';
     });
+  }
 
-
+  initPointerEvents() {
     // ========================================================
     // PC用：マウス操作（カーソル追従 / ドラッグ移動）
     // ========================================================
     const updateMousePos = (e) => {
-      const rect = this.canvas.getBoundingClientRect();
-      const scaleX = this.canvas.width / rect.width;
-      const scaleY = this.canvas.height / rect.height;
-      this.mouseInput.x = (e.clientX - rect.left) * scaleX;
-      this.mouseInput.y = (e.clientY - rect.top) * scaleY;
+      const point = this.getCanvasPoint(e.clientX, e.clientY);
+      if (!point) return false;
+      this.mouseInput.x = point.x;
+      this.mouseInput.y = point.y;
+      return true;
     };
 
     this.canvas.addEventListener('mousemove', (e) => {
-      if (this.state === 'PLAYING' && this.mouseInput.isDown) {
+      if (!this.isGameInputBlocked() && this.mouseInput.isDown) {
         updateMousePos(e);
         this.mouseInput.active = true;
       }
@@ -631,7 +742,8 @@ class AsaichiGame {
         return;
       }
       if (e.button === 0 && this.state === 'PLAYING') {
-        updateMousePos(e);
+        if (this.isGameInputBlocked()) return;
+        if (!updateMousePos(e)) return;
         this.mouseInput.isDown = true;
         this.mouseInput.active = true;
       }
@@ -651,14 +763,14 @@ class AsaichiGame {
     // スマホ用：画面どこでもタッチ＆ドラッグ移動（スクロール誤爆防止でノンストップ操作！）
     // ========================================================
     const updateTouchPos = (touch) => {
-      const rect = this.canvas.getBoundingClientRect();
-      const scaleX = this.canvas.width / rect.width;
-      const scaleY = this.canvas.height / rect.height;
-      this.mouseInput.x = (touch.clientX - rect.left) * scaleX;
-      this.mouseInput.y = (touch.clientY - rect.top) * scaleY;
+      const point = this.getCanvasPoint(touch.clientX, touch.clientY);
+      if (!point) return false;
+      this.mouseInput.x = point.x;
+      this.mouseInput.y = point.y;
+      return true;
     };
 
-    let directTouchId = null;
+    this.directTouchId = null;
 
     this.canvas.addEventListener('touchstart', (e) => {
       if (this.assistCutin) {
@@ -675,23 +787,25 @@ class AsaichiGame {
         }
         return;
       }
-      if (this.state === 'PLAYING') {
+      if (!this.isGameInputBlocked()) {
         e.preventDefault();
+        if (this.directTouchId !== null) return;
         const touch = e.changedTouches[0];
-        directTouchId = touch.identifier;
-        updateTouchPos(touch);
+        if (!touch) return;
+        if (!updateTouchPos(touch)) return;
+        this.directTouchId = touch.identifier;
         this.mouseInput.isDown = true;
         this.mouseInput.active = true;
       }
     }, { passive: false });
 
     this.canvas.addEventListener('touchmove', (e) => {
-      if (this.state === 'PLAYING') {
+      if (!this.isGameInputBlocked()) {
         e.preventDefault();
-        if (directTouchId !== null) {
+        if (this.directTouchId !== null) {
           for (let i = 0; i < e.changedTouches.length; i++) {
             const touch = e.changedTouches[i];
-            if (touch.identifier === directTouchId) {
+            if (touch.identifier === this.directTouchId) {
               updateTouchPos(touch);
               this.mouseInput.isDown = true;
               this.mouseInput.active = true;
@@ -704,8 +818,8 @@ class AsaichiGame {
 
     const handleDirectTouchEnd = (e) => {
       for (let i = 0; i < e.changedTouches.length; i++) {
-        if (e.changedTouches[i].identifier === directTouchId) {
-          directTouchId = null;
+        if (e.changedTouches[i].identifier === this.directTouchId) {
+          this.directTouchId = null;
           this.mouseInput.isDown = false;
           this.mouseInput.active = false;
           break;
@@ -715,20 +829,27 @@ class AsaichiGame {
 
     this.canvas.addEventListener('touchend', handleDirectTouchEnd, { passive: false });
     this.canvas.addEventListener('touchcancel', handleDirectTouchEnd, { passive: false });
+  }
 
+  initJoystickEvents() {
     // ========================================================
-    // スマホ用：右下バーチャルジョイスティック（グリグリ操作）
+    // スマートフォン横画面用の右下バーチャルジョイスティック
     // ========================================================
-    // スマホ用：下部コントローラーゾーン＆バーチャルジョイスティック
+    // 画面内に重ねる操作レイヤー
     // ========================================================
     const ctrlZone = document.getElementById('mobile-controller-zone');
     const joyZone = document.getElementById('joystick-zone');
     const joyBase = document.getElementById('joystick-base');
     const joyKnob = document.getElementById('joystick-knob');
 
-    let joyTouchId = null;
+    this.joyTouchId = null;
     let joyBaseCenter = { x: 0, y: 0 };
-    const maxJoyRadius = 42; // 最大傾斜半径（px：120pxベース最適化）
+    this.isMouseJoy = false;
+    const getMaxJoyRadius = () => {
+      const baseSize = joyBase?.getBoundingClientRect().width || 88;
+      const knobSize = joyKnob?.getBoundingClientRect().width || 42;
+      return Math.max(16, (baseSize - knobSize) / 2 - 3);
+    };
 
     const updateJoyBaseCenter = () => {
       if (joyBase) {
@@ -741,12 +862,17 @@ class AsaichiGame {
     };
 
     const handleJoyStart = (clientX, clientY, identifier) => {
-      joyTouchId = identifier;
+      if (this.isGameInputBlocked()) return;
+      this.joyTouchId = identifier;
       updateJoyBaseCenter();
       handleJoyMove(clientX, clientY);
     };
 
     const handleJoyMove = (clientX, clientY) => {
+      if (this.isGameInputBlocked()) {
+        handleJoyEnd();
+        return;
+      }
       const dx = clientX - joyBaseCenter.x;
       const dy = clientY - joyBaseCenter.y;
       const dist = Math.hypot(dx, dy);
@@ -758,6 +884,7 @@ class AsaichiGame {
         return;
       }
 
+      const maxJoyRadius = getMaxJoyRadius();
       const clampedDist = Math.min(dist, maxJoyRadius);
       const nx = dx / dist;
       const ny = dy / dist;
@@ -772,7 +899,7 @@ class AsaichiGame {
     };
 
     const handleJoyEnd = () => {
-      joyTouchId = null;
+      this.joyTouchId = null;
       this.joystickVector.x = 0;
       this.joystickVector.y = 0;
       if (joyKnob) {
@@ -780,20 +907,31 @@ class AsaichiGame {
       }
     };
 
+    this.cancelInputPointers = () => {
+      this.directTouchId = null;
+      this.joyTouchId = null;
+      this.isMouseJoy = false;
+      this.joystickVector.x = 0;
+      this.joystickVector.y = 0;
+      if (joyKnob) joyKnob.style.transform = 'translate(0px, 0px)';
+    };
+
     const targetTouchArea = ctrlZone || joyZone;
     if (targetTouchArea) {
       targetTouchArea.addEventListener('touchstart', (e) => {
         e.preventDefault();
+        if (this.joyTouchId !== null) return;
         const touch = e.changedTouches[0];
+        if (!touch) return;
         handleJoyStart(touch.clientX, touch.clientY, touch.identifier);
       }, { passive: false });
 
       // window に touchmove / touchend を登録することで指がゾーン外に多少外れても追従！
       window.addEventListener('touchmove', (e) => {
-        if (joyTouchId === null) return;
+        if (this.joyTouchId === null) return;
         for (let i = 0; i < e.changedTouches.length; i++) {
           const touch = e.changedTouches[i];
-          if (touch.identifier === joyTouchId) {
+          if (touch.identifier === this.joyTouchId) {
             handleJoyMove(touch.clientX, touch.clientY);
             break;
           }
@@ -801,9 +939,9 @@ class AsaichiGame {
       }, { passive: false });
 
       const onJoyTouchEnd = (e) => {
-        if (joyTouchId === null) return;
+        if (this.joyTouchId === null) return;
         for (let i = 0; i < e.changedTouches.length; i++) {
-          if (e.changedTouches[i].identifier === joyTouchId) {
+          if (e.changedTouches[i].identifier === this.joyTouchId) {
             handleJoyEnd();
             break;
           }
@@ -813,24 +951,25 @@ class AsaichiGame {
       window.addEventListener('touchcancel', onJoyTouchEnd);
 
       // PCマウスでもスティックをドラッグ操作可能（テスト・デバッグ用）
-      let isMouseJoy = false;
       targetTouchArea.addEventListener('mousedown', (e) => {
         if (e.button === 0) {
-          isMouseJoy = true;
+          this.isMouseJoy = true;
           handleJoyStart(e.clientX, e.clientY, 'mouse');
         }
       });
       window.addEventListener('mousemove', (e) => {
-        if (isMouseJoy) handleJoyMove(e.clientX, e.clientY);
+        if (this.isMouseJoy) handleJoyMove(e.clientX, e.clientY);
       });
       window.addEventListener('mouseup', () => {
-        if (isMouseJoy) {
-          isMouseJoy = false;
+        if (this.isMouseJoy) {
+          this.isMouseJoy = false;
           handleJoyEnd();
         }
       });
     }
+  }
 
+  startMainLoop() {
     // メインループ起動（例外発生時も決して止まらない完全ノンストップループ）
     let lastTime = performance.now();
     const loop = (now) => {
@@ -838,10 +977,18 @@ class AsaichiGame {
       const dt = (!rawDt || isNaN(rawDt) || rawDt <= 0) ? 0.016 : Math.min(0.08, rawDt);
       lastTime = now;
       try {
-        this.update(dt);
-        this.render();
+        if (document.hidden) {
+          requestAnimationFrame(loop);
+          return;
+        }
+        const canRenderGameplay = this.state === 'PLAYING' && !this.isGameInputBlocked();
+        if (this.state === 'PLAYING') this.update(dt);
+        if (canRenderGameplay && this.state === 'PLAYING') this.render();
       } catch (err) {
-        console.error('Frame update error caught safely:', err);
+        if (!this.frameErrorLogged) {
+          this.frameErrorLogged = true;
+          console.error('Game frame error; further repeats are suppressed:', err);
+        }
       }
       requestAnimationFrame(loop);
     };
@@ -853,11 +1000,34 @@ class AsaichiGame {
       console.warn('Assets still loading, please wait...');
       return;
     }
+    if (this.state === 'PLAYING') return;
+    this.refreshPresentationState();
+    if (this.mobilePortrait) return;
+    this.orientationResumeRequired = false;
+
+    this.runId++;
+    this.resultFinalizedForRun = false;
+    this.victoryClearTimerRemaining = 0;
+    this.assistCutin = null;
+    this.assistCutinQueue = [];
+    this.clearInputState();
+    this.keys = Object.create(null);
+    this.mouseInput = { active: false, x: 0, y: 0, isDown: false };
+    this.joystickVector = { x: 0, y: 0 };
+    this.touchDash = false;
+    this.lastEnemyDropSec = null;
+    this.hordeTimer = 0;
+    this.enemySpawnTimer = 0;
+    this.lightningFlashTimer = 0;
+    this.lightningBolts = [];
+
     this.sound.init();
     this.sound.startPeaceBGM(); // ★平和モード開始！のどかな朝市のレトロチップチューンBGM
 
     this.state = 'PLAYING';
+    this.refreshPresentationState();
     this.survivalTime = 0;
+    this.simulationTime = 0;
     this.killCount = 0;
     this.gold = 0;
     this.screenShake = 0;
@@ -870,17 +1040,24 @@ class AsaichiGame {
     this.player.y = 530;
     this.player.hp = 100;
     this.player.maxHp = 100;
+    this.player.stamina = this.player.maxStamina;
+    this.player.isDashing = false;
     this.player.level = 1;
     this.player.exp = 0;
     this.player.nextExp = 8;
     this.player.dir = 'down';
     this.player.invincibleTimer = 0;
     this.player.speedBuffTimer = 0;
+    this.player.speedSmokeTimer = 0;
     this.player.shieldBuffTimer = 0;
     this.player.knockbackTimer = 0;
+    this.player.knockbackVx = 0;
+    this.player.knockbackVy = 0;
     this.player.meowAnimTimer = 0;
     this.player.isMoving = false;
     this.player.facing = 1;
+    this.player.animTimer = 0;
+    this.player.animFrame = 0;
 
     // ゲーム開始時に上部HUDヘッダーを表示＆カメラをミケにセンタリング
     document.getElementById('ui-header')?.classList.remove('hidden');
@@ -1028,6 +1205,10 @@ class AsaichiGame {
   // 格闘ゲーム必殺技風・お助けキャラカットイン演出
   // ========================================================
   triggerAssistCutin(type, speechText) {
+    if (this.assistCutin) {
+      this.assistCutinQueue.push({ type, speechText });
+      return;
+    }
     this.assistCutin = {
       type, // 'tandem' | 'mikoshi' | 'noraneko'
       title: 'お助けキャラ登場！',
@@ -1053,6 +1234,9 @@ class AsaichiGame {
     } else if (type === 'noraneko') {
       this.spawnAllyCat();
     }
+
+    const nextCutin = this.assistCutinQueue.shift();
+    if (nextCutin) this.triggerAssistCutin(nextCutin.type, nextCutin.speechText);
   }
 
   // ★クライマックス最終決戦：真のラスボス「初代 勝浦暴走族総長」降臨！！
@@ -1118,16 +1302,34 @@ class AsaichiGame {
     this.showLevelUpBanner('🎉 勝浦朝市平和奪還！完全勝利！！', '暴走族総長を撃破！勝浦朝市に平和が戻ったニャ！！');
 
     // ファンファーレが響き渡った後（3.2秒後）に感動のエンディング画面へ！
-    setTimeout(() => {
-      this.endGame(true);
-    }, 3200);
+    this.victoryClearTimerRemaining = 3.2;
   }
 
   // ========================================================
   // 4. 更新ロジック（サバイバーコア）
   // ========================================================
   update(dt) {
-    if (this.state !== 'PLAYING') return;
+    if (this.state !== 'PLAYING' || document.hidden || this.mobilePortrait || this.orientationResumeRequired) return;
+
+    const tutorialOverlay = document.getElementById('tutorial-overlay');
+    if (tutorialOverlay && !tutorialOverlay.classList.contains('hidden')) return;
+
+    this.simulationTime = (this.simulationTime || 0) + dt;
+    if (this.lightningFlashTimer > 0) this.lightningFlashTimer = Math.max(0, this.lightningFlashTimer - dt);
+
+    if (this.isVictoryClear) {
+      this.victoryClearTimerRemaining = Math.max(0, this.victoryClearTimerRemaining - dt);
+      this.updateParticles(dt);
+      this.updateDamageNumbers(dt);
+      this.updateComicPopups(dt);
+      if (this.levelUpBanner) {
+        this.levelUpBanner.timer -= dt;
+        if (this.levelUpBanner.timer <= 0) this.levelUpBanner = null;
+      }
+      if (this.screenShake > 0) this.screenShake = Math.max(0, this.screenShake - dt * 2.5);
+      if (this.victoryClearTimerRemaining === 0) this.endGame(true);
+      return;
+    }
 
     // カットインイベント中（ヤンキー乱入・キョン乱入時：演出をしっかり見せる）
     if (this.eventState !== 'NONE') {
@@ -1204,6 +1406,10 @@ class AsaichiGame {
     }
 
     // プレイヤー死亡チェック
+    if (this.isVictoryClear) {
+      this.updateUI();
+      return;
+    }
     if (this.player.hp <= 0) {
       this.endGame(false);
       return;
@@ -1323,6 +1529,16 @@ class AsaichiGame {
     } else {
       p.animFrame = 0;
       p.animTimer = 0;
+    }
+
+    if (p.speedBuffTimer > 0) {
+      p.speedSmokeTimer = (p.speedSmokeTimer || 0) + dt;
+      while (p.speedSmokeTimer >= 0.12) {
+        p.speedSmokeTimer -= 0.12;
+        this.addParticle(p.x + (Math.random() - 0.5) * 16, p.y - 12, 'smoke');
+      }
+    } else {
+      p.speedSmokeTimer = 0;
     }
 
     // 子猫追従用の移動履歴記録
@@ -1741,7 +1957,7 @@ class AsaichiGame {
     const dmg = 120 * (1 + (this.skills.lightning.level - 1) * 0.35);
 
     targets.forEach(e => {
-      this.damageEnemy(e, dmg);
+      if (!this.damageEnemy(e, dmg)) return;
       e.knockbackVx = (Math.random() - 0.5) * 80;
       e.knockbackVy = 80;
       e.stunTimer = 1.8;
@@ -1754,6 +1970,17 @@ class AsaichiGame {
 
     // 画面フラッシュ用タイマー
     this.lightningFlashTimer = 0.12;
+    this.lightningBolts = Array.from({ length: 3 }, (_, index) => {
+      let x = (index + 1) * (this.viewW / 4) + (Math.random() - 0.5) * 60;
+      let y = 0;
+      const points = [{ x, y }];
+      while (y < this.viewH) {
+        x += (Math.random() - 0.5) * 50;
+        y += 30 + Math.random() * 40;
+        points.push({ x, y });
+      }
+      return points;
+    });
   }
 
   // ========================================================
@@ -1782,6 +2009,7 @@ class AsaichiGame {
   }
 
   updateTandemRushes(dt) {
+    const enemySnapshot = this.enemies.slice();
     for (let i = this.tandemRushes.length - 1; i >= 0; i--) {
       const t = this.tandemRushes[i];
       t.x += t.dir * t.speed * dt;
@@ -1801,12 +2029,13 @@ class AsaichiGame {
       }
 
       // 敵との衝突判定（当たり判定を半径100pxに大幅拡大！通り道の敵をごっそり跳ね飛ばす）
-      this.enemies.forEach(e => {
+      enemySnapshot.forEach(e => {
         if (t.hitEnemies.includes(e)) return;
         const dist = Math.hypot(e.x - t.x, e.y - t.y);
         if (dist < 100) {
+          if (!this.damageEnemy(e, 160, t.x - t.dir * 40, t.y)) return;
           t.hitEnemies.push(e);
-          this.damageEnemy(e, 160, t.x - t.dir * 40, t.y); // 特大ダメージ！
+          // 特大ダメージ！
           this.sound.playHit();
           e.knockbackVx = t.dir * 480;
           e.knockbackVy = -180;
@@ -1829,6 +2058,7 @@ class AsaichiGame {
   // ========================================================
   triggerMikoshiRush(count = 2) {
     const dir = Math.random() < 0.5 ? 1 : -1; // 1: 左から右, -1: 右から左
+    const runId = this.runId;
 
     const spawnOne = (c) => {
       if (this.state !== 'PLAYING') return;
@@ -1860,7 +2090,9 @@ class AsaichiGame {
 
     // 2基目以降はわずかなディレイ（140ms）で時間差追従出撃！
     for (let c = 1; c < count; c++) {
-      setTimeout(() => spawnOne(c), c * 140);
+      setTimeout(() => {
+        if (this.runId === runId) spawnOne(c);
+      }, c * 140);
     }
 
     this.screenShake = 0.38; // 重厚な地響き！
@@ -1869,6 +2101,7 @@ class AsaichiGame {
 
   updateMikoshiRushes(dt) {
     if (!this.mikoshiRushes || this.mikoshiRushes.length === 0) return;
+    const enemySnapshot = this.enemies.slice();
 
     for (let i = this.mikoshiRushes.length - 1; i >= 0; i--) {
       const t = this.mikoshiRushes[i];
@@ -1894,12 +2127,13 @@ class AsaichiGame {
       }
 
       // 敵との豪快な衝突判定（当たり判定半径125px！）
-      this.enemies.forEach(e => {
+      enemySnapshot.forEach(e => {
         if (t.hitEnemies.includes(e)) return;
         const dist = Math.hypot(e.x - t.x, e.y - t.y);
         if (dist < 125) {
+          if (!this.damageEnemy(e, 220, t.x - t.dir * 60, t.y)) return;
           t.hitEnemies.push(e);
-          this.damageEnemy(e, 220, t.x - t.dir * 60, t.y); // 神輿の一撃必殺超ド級ダメージ！
+          // 神輿の一撃必殺超ド級ダメージ！
           this.sound.playHit();
           e.knockbackVx = t.dir * 520;
           e.knockbackVy = -240; // 上空へ豪快に打ち上げ！
@@ -1939,10 +2173,10 @@ class AsaichiGame {
     });
 
     // 周囲の敵を一網打尽
-    this.enemies.forEach(e => {
+    [...this.enemies].forEach(e => {
       const dist = Math.hypot(e.x - p.x, e.y - p.y);
       if (dist <= radius) {
-        this.damageEnemy(e, dmg);
+        if (!this.damageEnemy(e, dmg)) return;
         e.stunTimer = Math.max(e.stunTimer, stunDuration);
         const nx = (e.x - p.x) || 1;
         const ny = (e.y - p.y) || 0;
@@ -1985,6 +2219,7 @@ class AsaichiGame {
   // 投射物更新（ブーメランカツオの往復ホーミング・キャッチ＆通常弾）
   updateProjectiles(dt) {
     const p = this.player;
+    const enemySnapshot = this.enemies.slice();
 
     for (let i = this.projectiles.length - 1; i >= 0; i--) {
       const pr = this.projectiles[i];
@@ -2035,7 +2270,7 @@ class AsaichiGame {
         }
 
         // 敵との多段ヒット判定（二乗距離比較で平方根計算を排除！0.20秒ごとにヒット）
-        for (let e of this.enemies) {
+        for (let e of enemySnapshot) {
           const dx = e.x - pr.x;
           const dy = e.y - pr.y;
           const hitR = e.w / 2 + 18;
@@ -2043,7 +2278,7 @@ class AsaichiGame {
             const lastHit = pr.hitCooldowns ? pr.hitCooldowns.get(e) || 0 : 0;
             if (pr.age - lastHit >= 0.20) {
               if (pr.hitCooldowns) pr.hitCooldowns.set(e, pr.age);
-              this.damageEnemy(e, pr.damage, pr.x, pr.y);
+              if (!this.damageEnemy(e, pr.damage, pr.x, pr.y)) continue;
               this.sound.playHit();
               for (let s = 0; s < 3; s++) this.addParticle(pr.x, pr.y, 'splash');
               for (let s = 0; s < 2; s++) this.addParticle(pr.x, pr.y, 'spark');
@@ -2068,14 +2303,14 @@ class AsaichiGame {
       }
 
       // 敵との衝突判定（二乗距離比較で超高速化！親ミケは範囲狭めの11px、子ミケは極小の8px）
-      for (let e of this.enemies) {
+      for (let e of enemySnapshot) {
         if (pr.hitEnemies && pr.hitEnemies.includes(e)) continue;
         const dx = e.x - pr.x;
         const dy = e.y - pr.y;
         const hitRadius = pr.isKitten ? (e.w / 2 + 8) : (e.w / 2 + 11);
         if (dx * dx + dy * dy < hitRadius * hitRadius) {
+          if (!this.damageEnemy(e, pr.damage, pr.x, pr.y)) continue;
           if (pr.hitEnemies) pr.hitEnemies.push(e);
-          this.damageEnemy(e, pr.damage, pr.x, pr.y);
           this.sound.playHit();
           pr.penetrate--;
           for (let s = 0; s < 4; s++) this.addParticle(pr.x, pr.y, 'spark');
@@ -2277,9 +2512,17 @@ class AsaichiGame {
       return;
     }
 
-    // ゾーンの角に引っかかった場合の微小推進（スタック防止）
-    e.x += vx * 0.2;
-    e.y += vy * 0.2;
+    // 微小推進も歩行可能判定を通し、角から押し出されて立入禁止区域へ入るのを防ぐ。
+    const nudgeX = e.x + vx * 0.2;
+    const nudgeY = e.y + vy * 0.2;
+    if (this.isPointWalkable(nudgeX, nudgeY)) {
+      e.x = nudgeX;
+      e.y = nudgeY;
+    } else if (this.isPointWalkable(nudgeX, e.y)) {
+      e.x = nudgeX;
+    } else if (this.isPointWalkable(e.x, nudgeY)) {
+      e.y = nudgeY;
+    }
   }
 
   // 敵の行動・AI
@@ -2291,7 +2534,7 @@ class AsaichiGame {
       if (s.cooldown > 0) s.cooldown -= dt;
     }
 
-    for (let i = this.enemies.length - 1; i >= 0; i--) {
+    for (let i = this.enemies.length - 1; i >= 0 && i < this.enemies.length; i--) {
       const e = this.enemies[i];
 
       // ボニートヒットクールダウン
@@ -2309,10 +2552,15 @@ class AsaichiGame {
       if (e.knockbackVx || e.knockbackVy) {
         const kbX = e.knockbackVx || 0;
         const kbY = e.knockbackVy || 0;
-        e.x += kbX * dt;
-        e.y += kbY * dt;
-        e.knockbackVx = Math.abs(kbX * 0.82) < 1 ? 0 : kbX * 0.82;
-        e.knockbackVy = Math.abs(kbY * 0.82) < 1 ? 0 : kbY * 0.82;
+        if (e.isFlying) {
+          e.x += kbX * dt;
+          e.y += kbY * dt;
+        } else {
+          this.moveEnemy(e, kbX * dt, kbY * dt);
+        }
+        const damping = Math.pow(0.82, dt * 60);
+        e.knockbackVx = Math.abs(kbX * damping) < 1 ? 0 : kbX * damping;
+        e.knockbackVy = Math.abs(kbY * damping) < 1 ? 0 : kbY * damping;
       }
 
       // スタン中
@@ -2331,8 +2579,9 @@ class AsaichiGame {
       e.animTimer += dt * (e.speed * 3);
 
       // 移動（トンビは飛行、地上敵は moveEnemy でスムーズ進入＆ゾーン内制御）
-      const vx = dx * e.speed;
-      const vy = dy * e.speed;
+      const frameScale = dt * 60;
+      const vx = dx * e.speed * frameScale;
+      const vy = dy * e.speed * frameScale;
       if (e.isFlying) {
         e.x += vx;
         e.y += vy;
@@ -2349,8 +2598,14 @@ class AsaichiGame {
           const sepDistSq = sepDx * sepDx + sepDy * sepDy;
           if (sepDistSq < 484 && sepDistSq > 0.01) { // 22px * 22px = 484
             const sepD = Math.sqrt(sepDistSq);
-            e.x += (sepDx / sepD) * 0.6;
-            e.y += (sepDy / sepD) * 0.6;
+            const separateX = (sepDx / sepD) * 0.6 * frameScale;
+            const separateY = (sepDy / sepD) * 0.6 * frameScale;
+            if (e.isFlying) {
+              e.x += separateX;
+              e.y += separateY;
+            } else {
+              this.moveEnemy(e, separateX, separateY);
+            }
           }
         }
       }
@@ -2402,7 +2657,8 @@ class AsaichiGame {
 
   // 敵へのダメージ処理（数字ポップアップを廃止し、点滅・揺れ・のけぞり・ヒットスパークで爽快演出！）
   damageEnemy(enemy, amount, fromX = null, fromY = null) {
-    enemy.hp -= amount;
+    if (!enemy || !Number.isFinite(amount) || amount <= 0 || enemy.hp <= 0 || !this.enemies.includes(enemy)) return false;
+    enemy.hp = Math.max(0, enemy.hp - amount);
 
     // 1. 白熱フラッシュ＆点滅タイマー
     enemy.hitFlashTimer = 0.16;
@@ -2431,14 +2687,15 @@ class AsaichiGame {
     if (enemy.hp <= 0) {
       this.defeatEnemy(enemy);
     }
+    return true;
   }
 
   // 敵撃破＆ドロップ処理
   defeatEnemy(enemy) {
     const idx = this.enemies.indexOf(enemy);
-    if (idx !== -1) {
-      this.enemies.splice(idx, 1);
-    }
+    if (!enemy || idx === -1) return false;
+    this.enemies.splice(idx, 1);
+    enemy.hp = 0;
 
     this.killCount++;
     this.sound.playEnemyDefeat();
@@ -2512,6 +2769,7 @@ class AsaichiGame {
         this.addParticle(dropX, dropY, dropType === 'coffee' ? 'smoke' : dropType === 'tantan' ? 'spark' : 'confetti');
       }
     }
+    return true;
   }
 
   // アイテム定期ランダム発生（★適度な出現ペースでハラハラサバイバル！）
@@ -2771,7 +3029,7 @@ class AsaichiGame {
         currentEnemies.forEach(e => {
           const d = Math.hypot(e.x - cat.x, e.y - cat.y);
           if (d <= stompRadius) {
-            this.damageEnemy(e, 260);
+            if (!this.damageEnemy(e, 260)) return;
             e.stunTimer = 2.0;
             const nx = (e.x - cat.x) || 1;
             const ny = (e.y - cat.y) || 0;
@@ -2824,8 +3082,8 @@ class AsaichiGame {
       currentEnemies.forEach(e => {
         const d = Math.hypot(e.x - cat.x, e.y - cat.y);
         if (d < 110 && (!e.allyHitTimer || e.allyHitTimer <= 0)) {
+          if (!this.damageEnemy(e, 22)) return;
           e.allyHitTimer = 0.25;
-          this.damageEnemy(e, 22);
           e.stunTimer = 0.5;
         }
       });
@@ -2862,8 +3120,8 @@ class AsaichiGame {
       currentEnemies.forEach(e => {
         const d = Math.hypot(e.x - cat.x, e.y - cat.y);
         if (d < 80 && (!e.allyHitTimer || e.allyHitTimer <= 0)) {
+          if (!this.damageEnemy(e, 65)) return;
           e.allyHitTimer = 0.12;
-          this.damageEnemy(e, 65);
           e.stunTimer = 1.0;
         }
       });
@@ -2877,7 +3135,7 @@ class AsaichiGame {
 
         const currentEnemies = [...this.enemies];
         currentEnemies.forEach(e => {
-          this.damageEnemy(e, 150);
+          if (!this.damageEnemy(e, 150)) return;
           e.stunTimer = 2.0;
           for (let s = 0; s < 2; s++) this.addParticle(e.x, e.y, 'spark');
         });
@@ -2981,7 +3239,7 @@ class AsaichiGame {
     }
 
     // レベルアップ時の衝撃波（身近な敵を軽く弾く）
-    this.enemies.forEach(e => {
+    [...this.enemies].forEach(e => {
       const d = Math.hypot(e.x - p.x, e.y - p.y);
       if (d < 160) {
         this.damageEnemy(e, 35);
@@ -3011,8 +3269,8 @@ class AsaichiGame {
     ctx.save();
     // 画面揺れ（スクリーンシェイク）
     if (this.screenShake > 0) {
-      const sx = (Math.random() - 0.5) * this.screenShake * 18;
-      const sy = (Math.random() - 0.5) * this.screenShake * 18;
+      const sx = Math.sin(this.simulationTime * 97) * this.screenShake * 9;
+      const sy = Math.cos(this.simulationTime * 89) * this.screenShake * 9;
       ctx.translate(sx, sy);
     }
 
@@ -3768,7 +4026,7 @@ class AsaichiGame {
 
   // ドロップアイテム描画（超美麗ピクセルアート小判・生カツオ・SPICE COFFEE・わらび餅・金のまたたび）
   renderDropItems(ctx) {
-    const now = Date.now();
+    const now = this.simulationTime * 1000;
     const minX = this.camera.x - 40;
     const maxX = this.camera.x + this.viewW + 40;
     const minY = this.camera.y - 40;
@@ -4371,7 +4629,7 @@ class AsaichiGame {
 
     // わらび餅バリアシールド（回転する金色の円環）
     if (p.shieldBuffTimer > 0) {
-      const rot = Date.now() / 200;
+      const rot = this.simulationTime * 5;
       ctx.strokeStyle = '#fbbf24';
       ctx.lineWidth = 3.0;
       ctx.beginPath();
@@ -4380,12 +4638,8 @@ class AsaichiGame {
     }
 
     // コーヒー爆速湯気エフェクト
-    if (p.speedBuffTimer > 0 && Math.random() < 0.3) {
-      this.addParticle(p.x + (Math.random() - 0.5) * 16, p.y - 12, 'smoke');
-    }
-
     // 点滅（被弾無敵）
-    if (p.invincibleTimer > 0 && Math.floor(Date.now() / 60) % 2 === 0) {
+    if (p.invincibleTimer > 0 && Math.floor(this.simulationTime * 1000 / 60) % 2 === 0) {
       ctx.restore();
       return;
     }
@@ -4428,7 +4682,7 @@ class AsaichiGame {
 
       // 静止時のやわらか呼吸アニメーション
       if (!isMoving) {
-        const breathe = 1 + Math.sin(Date.now() / 350) * 0.02;
+        const breathe = 1 + Math.sin(this.simulationTime * (1000 / 350)) * 0.02;
         ctx.scale(1, breathe);
       }
 
@@ -4507,8 +4761,8 @@ class AsaichiGame {
     let shakeX = 0;
     let shakeY = 0;
     if (e.hitShakeTimer > 0) {
-      shakeX = (Math.random() - 0.5) * 8.0;
-      shakeY = (Math.random() - 0.5) * 5.5;
+      shakeX = Math.sin(this.simulationTime * 145 + e.x * 0.07) * 4.0;
+      shakeY = Math.cos(this.simulationTime * 131 + e.y * 0.09) * 2.75;
     }
 
     ctx.translate(e.x + shakeX, e.y + shakeY);
@@ -4526,7 +4780,7 @@ class AsaichiGame {
 
     // 3. 被弾ホワイトフラッシュ・白熱点滅（超激重な ctx.filter を完全撤廃し、超軽量オーバーレイで実現！）
     const isHitFlashing = (e.hitFlashTimer > 0);
-    const isStunFlashing = (e.stunTimer > 0 && Math.floor(Date.now() / 80) % 2 === 0);
+    const isStunFlashing = (e.stunTimer > 0 && Math.floor(this.simulationTime * 1000 / 80) % 2 === 0);
 
     if (e.type === 'kyon' || e.type === 'boss_kyon') {
       // 房総名物キョン（ピョンピョン跳ねる小型シカのプロシージャルドット絵）
@@ -4959,7 +5213,7 @@ class AsaichiGame {
       ctx.lineWidth = 2.5;
       for (let s = 0; s < 3; s++) {
         const lineY = (s - 1) * 22;
-        const lineLen = 45 + Math.random() * 35;
+        const lineLen = 62.5 + Math.sin(t.x * 0.07 + s * 1.7) * 17.5;
         ctx.beginPath();
         ctx.moveTo(-t.dir * (bw / 2 + 10), lineY);
         ctx.lineTo(-t.dir * (bw / 2 + 10 + lineLen), lineY);
@@ -5022,7 +5276,7 @@ class AsaichiGame {
       ctx.lineWidth = 3;
       for (let s = 0; s < 3; s++) {
         const lineY = (s - 1) * 26;
-        const lineLen = 50 + Math.random() * 40;
+        const lineLen = 70 + Math.sin(t.x * 0.06 + s * 1.9) * 20;
         ctx.beginPath();
         ctx.moveTo(-t.dir * (bw / 2 + 12), lineY);
         ctx.lineTo(-t.dir * (bw / 2 + 12 + lineLen), lineY);
@@ -5041,16 +5295,7 @@ class AsaichiGame {
       ctx.fillRect(0, 0, this.viewW, this.viewH);
 
       // 稲妻ボルトの閃光ライン（shadowBlurを使わず太いシアン＋白熱コアで超高速描画！）
-      for (let i = 0; i < 3; i++) {
-        let lx = (i + 1) * (this.viewW / 4) + (Math.random() - 0.5) * 60;
-        let ly = 0;
-        const points = [{ x: lx, y: ly }];
-        while (ly < this.viewH) {
-          lx += (Math.random() - 0.5) * 50;
-          ly += 30 + Math.random() * 40;
-          points.push({ x: lx, y: ly });
-        }
-
+      for (const points of this.lightningBolts) {
         // 外側シアンオーラ
         ctx.strokeStyle = '#38bdf8';
         ctx.lineWidth = 6;
@@ -5068,8 +5313,6 @@ class AsaichiGame {
         ctx.stroke();
       }
       ctx.restore();
-
-      this.lightningFlashTimer -= 0.016;
     }
   }
 
@@ -5215,8 +5458,12 @@ class AsaichiGame {
       hpText.textContent = `${Math.round(this.player.hp)} / ${this.player.maxHp}`;
     }
 
-    // クリアまで残り時間タイマー表示（生存時間ではなくカウントダウン！）
+    // 総長登場までのカウントダウン。最終決戦へ移った後は状態を表示する。
     const timerDisplay = document.getElementById('timer-display');
+    const timerLabel = timerDisplay?.parentElement?.querySelector('.label');
+    if (timerLabel) timerLabel.textContent = this.finalBossPhase || this.isVictoryClear
+      ? '最終決戦'
+      : '総長登場まで';
     if (timerDisplay) {
       if (this.isVictoryClear) {
         timerDisplay.textContent = '🎉 完全制覇！';
@@ -5247,7 +5494,12 @@ class AsaichiGame {
 
   // ゲーム終了（クリア or ゲームオーバー）
   endGame(isClear = false) {
+    if (this.resultFinalizedForRun || this.state === 'RESULT') return;
+    if (this.isVictoryClear && !isClear) return;
+    this.resultFinalizedForRun = true;
+    this.runId++;
     this.state = 'RESULT';
+    this.refreshPresentationState();
     this.sound.stopBGM();
 
     const resultOverlay = document.getElementById('result-overlay');
@@ -5299,9 +5551,8 @@ class AsaichiGame {
     document.getElementById('final-survival-time').textContent = timeStr;
     document.getElementById('final-ko-count').textContent = `${this.killCount} 体`;
     document.getElementById('final-level').textContent = `LV. ${this.player.level}`;
-    document.getElementById('final-score').textContent = `💰 ${this.gold}`;
-
     resultOverlay?.classList.remove('hidden');
+    this.refreshPresentationState();
   }
 }
 
@@ -5309,4 +5560,3 @@ class AsaichiGame {
 window.addEventListener('load', () => {
   window.game = new AsaichiGame();
 });
-

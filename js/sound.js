@@ -13,6 +13,7 @@ class SoundSystem {
     this.soundEnabled = true;
     this.bgmPlaying = false;
     this.currentBgmType = 'NONE'; // 'NONE' | 'PEACE' | 'BATTLE'
+    this.resumeBgmType = 'PEACE';
 
     // 平和モードBGM用タイマー・状態
     this.peaceBgmTimer = null;
@@ -107,13 +108,13 @@ class SoundSystem {
   toggleSound() {
     this.soundEnabled = !this.soundEnabled;
     if (!this.soundEnabled) {
+      this.resumeBgmType = this.currentBgmType === 'NONE' ? 'PEACE' : this.currentBgmType;
       this.stopBGM();
     } else {
-      if (this.currentBgmType === 'BATTLE') {
-        this.startBattleBGM();
-      } else {
-        this.startPeaceBGM();
-      }
+      const resumeType = this.currentBgmType === 'NONE' ? this.resumeBgmType : this.currentBgmType;
+      if (resumeType === 'BATTLE') this.startBattleBGM();
+      else if (resumeType === 'CLEAR') this.startClearBGM();
+      else this.startPeaceBGM();
     }
     return this.soundEnabled;
   }
@@ -718,10 +719,10 @@ class SoundSystem {
     this.stopBattleBGM();
     this.stopClearBGM();
     this.stopPeaceBGM();
+    this.currentBgmType = 'PEACE';
     if (!this.soundEnabled) return;
     this.init();
 
-    this.currentBgmType = 'PEACE';
     this.peaceBgmPlaying = true;
 
     // のどかな朝市のメロディループ
@@ -765,10 +766,10 @@ class SoundSystem {
   startBattleBGM() {
     this.stopPeaceBGM();
     this.stopClearBGM();
+    this.currentBgmType = 'BATTLE';
     if (!this.soundEnabled) return;
     this.init();
 
-    this.currentBgmType = 'BATTLE';
     this.bgmPlaying = true;
     try {
       this.bgmAudio.currentTime = 0;
@@ -793,10 +794,10 @@ class SoundSystem {
   startClearBGM() {
     this.stopPeaceBGM();
     this.stopBattleBGM();
+    this.currentBgmType = 'CLEAR';
     if (!this.soundEnabled) return;
     this.init();
 
-    this.currentBgmType = 'CLEAR';
     try {
       if (this.clearBgmAudio) {
         this.clearBgmAudio.currentTime = 0;
