@@ -803,24 +803,30 @@ class SoundSystem {
     if (!this.soundEnabled || this.currentBgmType === 'NONE') return Promise.resolve(false);
     const type = this.currentBgmType;
 
-    if (type === 'PEACE') {
-      if (this.ctx && this.ctx.state !== 'running' && this.peaceBgmPlaying) {
-        this.stopPeaceBGM();
-      }
-      return Promise.resolve(this.init()).then((isRunning) => {
-        if (!isRunning || !this.soundEnabled || this.currentBgmType !== 'PEACE') return false;
-        if (!this.peaceBgmPlaying) this.startPeaceBGM();
-        return true;
-      }).catch(() => false);
+    if (type === 'PEACE' && this.ctx && this.ctx.state !== 'running' && this.peaceBgmPlaying) {
+      this.stopPeaceBGM();
     }
 
-    const audio = type === 'BATTLE' ? this.bgmAudio : this.clearBgmAudio;
-    if (!audio || !audio.paused) return Promise.resolve(true);
-    try {
-      return Promise.resolve(audio.play()).then(() => true).catch(() => false);
-    } catch (error) {
-      return Promise.resolve(false);
+    // コンテキストとHTMLAudioを同じユーザー操作中に再開し、iOSの再生許可を逃さない。
+    const contextRecovery = this.init();
+    const audio = type === 'BATTLE' ? this.bgmAudio : type === 'CLEAR' ? this.clearBgmAudio : null;
+    let audioRecovery = Promise.resolve(true);
+    if (audio && audio.paused) {
+      try {
+        audioRecovery = Promise.resolve(audio.play()).then(() => true).catch(() => false);
+      } catch (error) {
+        audioRecovery = Promise.resolve(false);
+      }
     }
+
+    return Promise.all([Promise.resolve(contextRecovery).catch(() => false), audioRecovery]).then(([isRunning, audioResumed]) => {
+      if (!this.soundEnabled || this.currentBgmType !== type) return false;
+      if (type === 'PEACE') {
+        if (!isRunning) return false;
+        if (!this.peaceBgmPlaying) this.startPeaceBGM();
+      }
+      return audioResumed;
+    }).catch(() => false);
   }
 
   // ★戦闘モードBGM開始（ヤンキー登場以降：ユーザー提供の神曲MP3！）
