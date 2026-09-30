@@ -51,6 +51,7 @@ class AsaichiGame {
     this.assistCutin = null; // お助けキャラ格ゲー風必殺技カットイン状態
     this.assistCutinQueue = [];
     this.assistCutinSeen = { tandem: false, mikoshi: false, noraneko: false }; // 各アイテム初回取得時のみカットイン発動
+    this.reduceMotion = window.matchMedia?.('(prefers-reduced-motion: reduce)').matches || false;
     this.isMobilePhoneActive = false;
     this.mobilePortrait = false;
     this.orientationResumeRequired = false;
@@ -62,7 +63,7 @@ class AsaichiGame {
     this.kittens = []; // ミケについてくる子猫リスト
     this.lightningTimer = 0; // 電撃タイマー
     this.lightningBolts = [];
-    this.levelUpBanner = null; // レベルアップ自動通知バナー
+    this.levelUpBanner = null; // 朝市・敵登場の告知バナー
 
     // 操作入力（PCマウス操作 ＆ スマホ右下バーチャルスティック）
     this.joystickVector = { x: 0, y: 0 };
@@ -94,6 +95,7 @@ class AsaichiGame {
       animTimer: 0,
       animFrame: 0,
       meowAnimTimer: 0,
+      levelUpFxTimer: 0,
       hp: 100,
       maxHp: 100,
       level: 1,
@@ -224,7 +226,7 @@ class AsaichiGame {
     orientationOverlay?.classList.toggle('hidden', !showOrientationOverlay);
     const orientationTitle = document.getElementById('orientation-title');
     const orientationCopy = document.getElementById('orientation-copy');
-    const orientationButton = document.getElementById('orientation-fullscreen-btn');
+    const orientationButton = document.getElementById('orientation-resume-btn');
     if (showOrientationOverlay) {
       const needsResume = !this.mobilePortrait && this.orientationResumeRequired;
       if (orientationTitle) orientationTitle.textContent = needsResume ? '横向きに戻ったよ' : '端末を横向きにしてね';
@@ -235,7 +237,7 @@ class AsaichiGame {
             ? '戦闘を一時停止したよ。横向きに戻すと、続きから遊べるよ。'
             : 'このゲームはスマートフォンを横にして遊べるよ。横向きになったら、タイトルの「出撃」から始めてね。';
       }
-      if (orientationButton) orientationButton.textContent = needsResume ? '続ける' : '全画面表示を試す';
+      if (orientationButton) orientationButton.hidden = !needsResume;
     }
     const restartButton = document.getElementById('restart-btn');
     if (restartButton) {
@@ -246,19 +248,6 @@ class AsaichiGame {
     }
     if (this.mobilePortrait) this.clearInputState();
 
-    const standalone = window.matchMedia?.('(display-mode: standalone)').matches ||
-      window.matchMedia?.('(display-mode: fullscreen)').matches || navigator.standalone === true;
-    for (const button of [document.getElementById('fullscreen-btn'), document.getElementById('title-fullscreen-btn')]) {
-      if (button) button.hidden = !!standalone;
-    }
-
-    const nativeFullscreen = !!(document.fullscreenElement || document.webkitFullscreenElement ||
-      document.mozFullScreenElement || document.msFullscreenElement);
-    const label = nativeFullscreen ? '✖ 縮小' : '⛶ 全画面';
-    const headerButton = document.getElementById('fullscreen-btn');
-    const titleButton = document.getElementById('title-fullscreen-btn');
-    if (headerButton) headerButton.textContent = label;
-    if (titleButton) titleButton.textContent = label;
     this.mobileUI?.resize();
     this.mobileUI?.syncVisibility();
   }
@@ -297,7 +286,6 @@ class AsaichiGame {
     this.sound.stopBGM();
     document.getElementById('tutorial-overlay')?.classList.add('hidden');
     document.getElementById('result-overlay')?.classList.add('hidden');
-    document.getElementById('levelup-overlay')?.classList.add('hidden');
     document.getElementById('ui-header')?.classList.add('hidden');
     const titleOverlay = document.getElementById('title-overlay');
     titleOverlay?.classList.remove('hidden');
@@ -575,76 +563,6 @@ class AsaichiGame {
   }
 
   initPresentationEvents() {
-    // ========================================================
-    // 全画面表示：実際のAPI成功時だけ全画面として扱う
-    // ========================================================
-    const isIOS = /iPad|iPhone|iPod/.test(navigator.userAgent) ||
-      (navigator.platform === 'MacIntel' && navigator.maxTouchPoints > 1);
-    const isNativeFullscreen = () => !!(document.fullscreenElement || document.webkitFullscreenElement ||
-      document.mozFullScreenElement || document.msFullscreenElement);
-    const showFullscreenHelp = () => {
-      const toast = document.getElementById('safari-fullscreen-toast');
-      if (!toast) return;
-      const text = toast.querySelector('.toast-text');
-      if (text) {
-        text.textContent = isIOS
-          ? 'このブラウザではバーを隠せない場合があります。共有ボタンから「ホーム画面に追加」し、アプリとして起動できる場合は追加アイコンから開くとバーなしで遊べます。'
-          : 'このブラウザはページの全画面表示に対応していません。画面の表示領域に合わせて遊べます。';
-      }
-      toast.classList.remove('hidden');
-      if (this.safariToastTimer) clearTimeout(this.safariToastTimer);
-      this.safariToastTimer = setTimeout(() => toast.classList.add('hidden'), 9000);
-    };
-    const tryEnterFullscreen = () => {
-      const appMode = window.matchMedia?.('(display-mode: standalone)').matches ||
-        window.matchMedia?.('(display-mode: fullscreen)').matches || navigator.standalone === true;
-      if (appMode || isNativeFullscreen()) return;
-
-      // ページ全体を全画面対象にし、ゲーム外に置いた回転案内・失敗案内も表示できるようにする。
-      const target = document.documentElement;
-      const request = target?.requestFullscreen || target?.webkitRequestFullscreen ||
-        target?.mozRequestFullScreen || target?.msRequestFullscreen;
-      if (!request) {
-        showFullscreenHelp();
-        return;
-      }
-
-      let fullscreenPromise;
-      try {
-        fullscreenPromise = request.call(target, { navigationUI: 'hide' });
-      } catch (firstError) {
-        try { fullscreenPromise = request.call(target); }
-        catch (error) { showFullscreenHelp(); return; }
-      }
-
-      try { window.screen?.orientation?.lock?.('landscape')?.catch(() => {}); } catch (error) {}
-      Promise.resolve(fullscreenPromise).then(() => {
-        setTimeout(() => {
-          this.refreshPresentationState();
-          if (!isNativeFullscreen()) showFullscreenHelp();
-        }, 250);
-      }).catch(() => showFullscreenHelp());
-    };
-    const toggleFullscreen = () => {
-      if (isNativeFullscreen()) {
-        const exit = document.exitFullscreen || document.webkitExitFullscreen ||
-          document.mozCancelFullScreen || document.msExitFullscreen;
-        try { Promise.resolve(exit?.call(document)).then(() => this.refreshPresentationState()).catch(() => {}); }
-        catch (error) { this.refreshPresentationState(); }
-      } else {
-        tryEnterFullscreen();
-      }
-    };
-
-    document.addEventListener('fullscreenchange', () => this.refreshPresentationState());
-    document.addEventListener('webkitfullscreenchange', () => this.refreshPresentationState());
-    document.addEventListener('mozfullscreenchange', () => this.refreshPresentationState());
-    document.addEventListener('MSFullscreenChange', () => this.refreshPresentationState());
-    document.getElementById('btn-close-safari-toast')?.addEventListener('click', (e) => {
-      e.stopPropagation();
-      document.getElementById('safari-fullscreen-toast')?.classList.add('hidden');
-    });
-
     const handleOrientation = () => this.refreshPresentationState();
     window.addEventListener('resize', handleOrientation, { passive: true });
     window.addEventListener('orientationchange', handleOrientation, { passive: true });
@@ -660,31 +578,13 @@ class AsaichiGame {
     this.refreshPresentationState();
 
     // UIボタン＆タイトル画面タップ
-    const fsBtn = document.getElementById('fullscreen-btn');
-    if (fsBtn) {
-      fsBtn.addEventListener('click', (e) => {
-        e.stopPropagation();
-        toggleFullscreen();
-      });
-    }
-
-    const titleFsBtn = document.getElementById('title-fullscreen-btn');
-    if (titleFsBtn) {
-      titleFsBtn.addEventListener('click', (e) => {
-        e.stopPropagation();
-        toggleFullscreen();
-      });
-    }
-
     document.getElementById('btn-quick-start')?.addEventListener('click', (e) => {
       e.stopPropagation();
       this.startGame();
     });
-    document.getElementById('orientation-fullscreen-btn')?.addEventListener('click', (e) => {
+    document.getElementById('orientation-resume-btn')?.addEventListener('click', (e) => {
       e.stopPropagation();
-      if (this.resumeAfterOrientation()) return;
-      tryEnterFullscreen();
-      try { window.screen?.orientation?.lock?.('landscape')?.catch(() => {}); } catch (error) {}
+      this.resumeAfterOrientation();
     });
     document.getElementById('btn-view-help')?.addEventListener('click', () => {
       this.openTutorial();
@@ -1061,6 +961,7 @@ class AsaichiGame {
     this.player.meowAnimTimer = 0;
     this.player.isMoving = false;
     this.player.facing = 1;
+    this.player.levelUpFxTimer = 0;
     this.player.animTimer = 0;
     this.player.animFrame = 0;
 
@@ -1129,7 +1030,6 @@ class AsaichiGame {
       titleEl.style.display = 'none';
     }
     document.getElementById('tutorial-overlay')?.classList.add('hidden');
-    document.getElementById('levelup-overlay')?.classList.add('hidden');
     document.getElementById('result-overlay')?.classList.add('hidden');
 
     this.updateUI();
@@ -1442,6 +1342,7 @@ class AsaichiGame {
     const p = this.player;
 
     // バフ・アニメーションタイマー
+    p.levelUpFxTimer = Math.max(0, (p.levelUpFxTimer || 0) - dt);
     if (p.invincibleTimer > 0) p.invincibleTimer -= dt;
     if (p.speedBuffTimer > 0) p.speedBuffTimer -= dt;
     if (p.scratchAnimTimer > 0) p.scratchAnimTimer -= dt; // ひっかき攻撃モーションタイマー
@@ -3034,7 +2935,7 @@ class AsaichiGame {
     }
   }
 
-  // 自動進化の適用＆スタイリッシュなレベルアップバナー表示
+  // 自動進化の適用＆ミケの短いレベルアップ通知
   applyAutomaticEvolution(level) {
     const p = this.player;
     const evo = LEVEL_EVOLUTION[level] || {
@@ -3048,31 +2949,8 @@ class AsaichiGame {
 
     evo.apply(this);
 
-    // 画面上部に華やかなゴールドバナーをセット（2.8秒間表示）
-    this.levelUpBanner = {
-      title: `⭐ LEVEL UP! [LV.${level}] ${evo.title}`,
-      sub: evo.sub,
-      timer: 2.8,
-      maxTimer: 2.8
-    };
-
-    // プレイヤーの周囲に金色のレベルアップ光輪パーティクル
-    for (let i = 0; i < 16; i++) {
-      if (this.particles.length >= 60) break;
-      const angle = (i / 16) * Math.PI * 2;
-      this.particles.push({
-        type: 'spark',
-        x: p.x,
-        y: p.y - 12,
-        vx: Math.cos(angle) * 3.5,
-        vy: Math.sin(angle) * 3.5,
-        color: '#fbbf24',
-        alpha: 1.0,
-        life: 0.7,
-        maxLife: 0.7,
-        size: 4
-      });
-    }
+    // 自動強化は継続し、通知だけをミケ付近の短い発光へ置き換える。
+    p.levelUpFxTimer = 0.7;
 
     // レベルアップ時の衝撃波（身近な敵を軽く弾く）
     [...this.enemies].forEach(e => {
@@ -3393,72 +3271,13 @@ class AsaichiGame {
     ctx.fillStyle = '#ffffff';
     ctx.shadowColor = 'rgba(0, 0, 0, 0.8)';
     ctx.shadowBlur = 4;
-    ctx.fillText(speechText, textStartX, winY + 64);
+    ctx.fillText(speechText, textStartX, winY + 64, winW - 150);
     ctx.shadowBlur = 0;
 
     // サブ説明文
     ctx.font = '13px sans-serif';
     ctx.fillStyle = '#94a3b8';
-    ctx.fillText(subText, textStartX, winY + 92);
-
-    // D. 右下：プレイヤーの操作が必須の「次へ進むボタン」（自動進行は完全廃止！）
-    if (this.eventLockoutTimer <= 0) {
-      const btnW = 190;
-      const btnH = 38;
-      const btnX = winX + winW - btnW - 16;
-      const btnY = winY + winH - btnH - 14;
-
-      // ボタン背景グラデーション
-      const btnGrad = ctx.createLinearGradient(btnX, btnY, btnX, btnY + btnH);
-      if (isYankee) {
-        btnGrad.addColorStop(0, '#f59e0b');
-        btnGrad.addColorStop(1, '#d97706');
-      } else if (isKyon) {
-        btnGrad.addColorStop(0, '#10b981');
-        btnGrad.addColorStop(1, '#059669');
-      } else {
-        btnGrad.addColorStop(0, '#38bdf8');
-        btnGrad.addColorStop(1, '#0284c7');
-      }
-
-      ctx.save();
-      // ボタンの光彩パルス
-      ctx.shadowColor = isYankee ? '#f59e0b' : isKyon ? '#10b981' : '#38bdf8';
-      ctx.shadowBlur = 10;
-      ctx.fillStyle = btnGrad;
-      ctx.beginPath();
-      ctx.roundRect(btnX, btnY, btnW, btnH, 8);
-      ctx.fill();
-      ctx.restore();
-
-      // ボタン枠線
-      ctx.strokeStyle = '#ffffff';
-      ctx.lineWidth = 2;
-      ctx.beginPath();
-      ctx.roundRect(btnX, btnY, btnW, btnH, 8);
-      ctx.stroke();
-
-      // ボタン文言
-      let btnLabel = '朝市へGO！ ▶';
-      if (isYankee) btnLabel = '撃退するニャ！ ⚔️';
-      else if (isKyon) btnLabel = '警戒するニャ！ 🐾';
-
-      ctx.font = 'bold 15px sans-serif';
-      ctx.fillStyle = '#ffffff';
-      ctx.textAlign = 'center';
-      ctx.shadowColor = 'rgba(0,0,0,0.6)';
-      ctx.shadowBlur = 4;
-      ctx.fillText(btnLabel, btnX + btnW / 2, btnY + 24);
-      ctx.shadowBlur = 0;
-      ctx.textAlign = 'left';
-
-      // ボタン下の補助キー案内
-      ctx.font = '10px sans-serif';
-      ctx.fillStyle = '#cbd5e1';
-      ctx.textAlign = 'center';
-      ctx.fillText('[ TAP / SPACEキー ]', btnX + btnW / 2, btnY + btnH + 11);
-      ctx.textAlign = 'left';
-    }
+    ctx.fillText(subText, textStartX, winY + 92, winW - 320);
 
     ctx.restore();
   }
@@ -4439,9 +4258,16 @@ class AsaichiGame {
 
     // コーヒー爆速湯気エフェクト
     // 点滅（被弾無敵）
-    if (p.invincibleTimer > 0 && Math.floor(this.simulationTime * 1000 / 60) % 2 === 0) {
+    if (p.invincibleTimer > 0 && !(p.levelUpFxTimer > 0) && Math.floor(this.simulationTime * 1000 / 60) % 2 === 0) {
       ctx.restore();
       return;
+    }
+
+    // 発光は小さなスプライトだけ。画面全体のフィルターや点滅は使わない。
+    if (p.levelUpFxTimer > 0) {
+      const strength = this.reduceMotion ? 0 : Math.sin(Math.PI * p.levelUpFxTimer / 0.7);
+      ctx.shadowColor = '#fff4b0';
+      ctx.shadowBlur = 10 * strength;
     }
 
     // ネコスプライト描画
@@ -4487,7 +4313,22 @@ class AsaichiGame {
       }
 
       // ドット絵描画（256x256 から 52x52 にスケール）
-      ctx.drawImage(this.images.cat, col * cell, row * cell, cell, cell, -26, -46, 52, 52);
+      if (isMoving && (p.dir === 'up' || p.dir === 'down')) {
+        // 上下用は歩行絵が1枚なので、足元を左右に分けて交互に踏み出す。
+        // 顔・風呂敷は反転せず、胴体との接合位置を固定する。
+        const seam = 170;
+        const topH = 52 * seam / cell;
+        const legH = 52 - topH;
+        const stride = [0, 2, 0, -2][p.animFrame % 4];
+        ctx.drawImage(this.images.cat, col * cell, row * cell, cell, seam, -26, -46, 52, topH);
+        for (let side = 0; side < 2; side++) {
+          const lift = side === 0 ? stride : -stride;
+          ctx.drawImage(this.images.cat, col * cell + side * cell / 2, row * cell + seam,
+            cell / 2, cell - seam, -26 + side * 26, -46 + topH, 26, legH + lift);
+        }
+      } else {
+        ctx.drawImage(this.images.cat, col * cell, row * cell, cell, cell, -26, -46, 52, 52);
+      }
       ctx.restore();
     } else {
       // 画像ロード待ち時のフォールバック描画（オレンジの四角形を全廃し、可愛い三毛猫シルエットを描画！）
@@ -4547,6 +4388,17 @@ class AsaichiGame {
       ctx.restore();
     }
 
+    if (p.levelUpFxTimer > 0) {
+      const progress = this.reduceMotion ? 0 : 1 - p.levelUpFxTimer / 0.7;
+      ctx.shadowBlur = 0;
+      ctx.globalAlpha = Math.min(1, p.levelUpFxTimer / 0.2);
+      ctx.font = 'bold 13px sans-serif';
+      ctx.textAlign = 'center'; ctx.textBaseline = 'bottom';
+      ctx.strokeStyle = '#372713'; ctx.lineWidth = 2;
+      ctx.fillStyle = '#fff4b0';
+      ctx.strokeText('LVUP!', 0, -52 - progress * 6);
+      ctx.fillText('LVUP!', 0, -52 - progress * 6);
+    }
     ctx.restore();
   }
 

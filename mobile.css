@@ -41,9 +41,9 @@ body.mobile-landscape #mobile-hud {
 #mobile-hp-fill.low { background: #fb7185; }
 .mobile-exp-meter { height: 3px; margin-top: 3px; background: #3b4555; }
 #mobile-exp-fill { height: 100%; background: #38bdf8; }
-.mobile-clock { position: absolute; left: 50%; transform: translateX(-50%); text-align: center; padding: 4px 12px; background: #0b1522e8; border: 1px solid #66788b; border-radius: 8px; }
-.mobile-clock span { display: block; font-size: 12px; line-height: 16px; color: #e2e8f0; white-space: nowrap; }
-.mobile-clock strong { display: block; font-size: 20px; line-height: 22px; }
+.mobile-clock { position: absolute; left: 50%; transform: translateX(-50%); display: flex; align-items: center; gap: 6px; padding: 4px 8px; min-height: 30px; background: #0b1522de; border-radius: 6px; }
+.mobile-clock span { display: block; font-size: 11px; line-height: 16px; color: #e2e8f0; white-space: nowrap; }
+.mobile-clock strong { display: block; font-size: 16px; line-height: 20px; white-space: nowrap; }
 #mobile-pause { width: 48px; height: 48px; pointer-events: auto; background: #0b1522ec; border: 1px solid #94a3b8; border-radius: 10px; color: #fff; font-size: 24px; cursor: pointer; }
 body.mobile-landscape #mobile-notice {
   display: block; position: absolute; z-index: 34; top: calc(env(safe-area-inset-top, 0px) + 64px); left: 50%; transform: translateX(-50%);
@@ -73,7 +73,6 @@ body.mobile-landscape .start-button, body.mobile-landscape .sub-action-button { 
 body.mobile-landscape #title-overlay { background-size: contain !important; background-color: #080c10 !important; }
 body.mobile-landscape .sfc-start-hitbox { top: auto; bottom: max(12px, env(safe-area-inset-bottom, 0px)); left: 50%; width: 220px; height: 52px; transform: translateX(-50%); border: 2px solid #fde68a; border-radius: 10px; background: #9f2525; animation: none; }
 body.mobile-landscape .mobile-start-label { display: block; color: white; font-size: 20px; font-weight: 900; }
-body.mobile-landscape .title-fs-btn { min-height: 48px; font-size: 14px; animation: none; }
 body.mobile-landscape #result-overlay .overlay-card { display: grid; grid-template-columns: minmax(0, 1.1fr) minmax(0, 1fr); grid-template-rows: auto auto auto auto auto; column-gap: 20px; width: min(100%, 900px); max-width: none; padding: 14px 18px; }
 body.mobile-landscape .result-title { grid-column: 2; font-size: 18px; line-height: 1.3; margin: 0; }
 body.mobile-landscape .stars { grid-column: 2; font-size: 18px; line-height: 20px; margin: 0; }
@@ -99,3 +98,13 @@ body.mobile-portrait #ui-header { display: none !important; }
 }
 #skip-peace:focus-visible { outline: 3px solid #fff; outline-offset: 3px; }
 #skip-peace:active { background: #7f1d1d; }
+
+#event-continue {
+  position: absolute; z-index: 46; right: calc(env(safe-area-inset-right, 0px) + 16px);
+  bottom: calc(env(safe-area-inset-bottom, 0px) + 16px);
+  min-height: 48px; min-width: 148px; padding: 10px 16px; border: 2px solid #fde68a;
+  border-radius: 8px; background: #9f2525; color: #fff; font: bold 16px/1.4 sans-serif;
+  white-space: nowrap; cursor: pointer; touch-action: manipulation;
+}
+#event-continue:disabled { opacity: .55; cursor: default; }
+.pause-actions #mobile-title { grid-column: 1 / -1; }

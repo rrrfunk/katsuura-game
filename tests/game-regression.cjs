@@ -382,8 +382,6 @@ assert.ok(travel.every((distance) => Math.abs(distance - 120) < 0.01), `frame-ra
   const renderPipeline = gameSource.slice(renderStart, particleFactory);
   assert.equal(manifest.orientation, 'landscape');
   assert.equal(manifest.display, 'standalone');
-  assert.match(gameSource, /const target = document\.documentElement;/,
-    'fullscreen root must include the orientation and status overlays');
   assert.doesNotMatch(renderPipeline, /Math\.random\(|Date\.now\(\)|this\.addParticle\(/,
     'rendering must not consume gameplay randomness, wall time, or emit particles');
   for (const icon of manifest.icons) {
@@ -621,8 +619,43 @@ async function verifyPeaceBgmWaitsForAudioResume() {
   assert.equal(game.enemies.length, 0);
 }
 
+// レベルアップは強化を適用しつつ戦闘・入力を止めず、通知だけ短時間で消える。
+{
+  let evolved = 0;
+  gameContext.LEVEL_EVOLUTION[2] = { apply() { evolved++; } };
+  const game = makeGame({ eventState: 'NONE', assistCutin: null, levelUpBanner: null,
+    skills: { boots: { level: 0 } }, player: { x: 0, y: 0, level: 2, dir: 'down', facing: 1 },
+    moveWithCollision() {} });
+  game.applyAutomaticEvolution(2);
+  assert.equal(evolved, 1);
+  assert.equal(game.state, 'PLAYING');
+  assert.equal(game.isGameInputBlocked(), false);
+  assert.equal(game.levelUpBanner, null);
+  assert.equal(game.player.levelUpFxTimer, 0.7);
+  game.updatePlayer(0.8);
+  assert.equal(game.player.levelUpFxTimer, 0);
+}
+
+// 上下でも歩行の描画が変わり、向き・頭部を反転せずに足を交互に動かす。
+{
+  gameContext.SPRITES = { cat: { cell: 256 } };
+  const calls = [];
+  const ctx = new Proxy({}, { get: (_, key) => key === 'drawImage' ? (...args) => calls.push(args) : () => {} });
+  const game = makeGame({ simulationTime: 1, images: { cat: { complete: true, naturalWidth: 1024 } },
+    player: { x: 0, y: 0, dir: 'up', facing: 1, isMoving: true, animFrame: 1, animTimer: 1, invincibleTimer: 0 } });
+  for (const direction of ['up', 'down']) {
+    game.player.dir = direction;
+    calls.length = 0; game.player.animFrame = 1; game.drawPlayer(ctx);
+    const first = calls.map(c => c.slice(1));
+    calls.length = 0; game.player.animFrame = 3; game.drawPlayer(ctx);
+    assert.deepEqual(first[0], calls[0].slice(1), 'head and body stay in the same source pose');
+    assert.notDeepEqual(first[1], calls[1].slice(1), 'left foot changes its step');
+    assert.notDeepEqual(first[2], calls[2].slice(1), 'right foot changes its step');
+  }
+}
+
 verifyPeaceBgmWaitsForAudioResume().then(() => {
-  console.log('PDCA regression checks passed: 27 + peace BGM resume');
+  console.log('PDCA regression checks passed: 29 + peace BGM resume');
 }).catch((error) => {
   console.error(error);
   process.exitCode = 1;

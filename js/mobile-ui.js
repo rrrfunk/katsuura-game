@@ -3,12 +3,16 @@ class MobileUI {
   constructor(game) {
     this.game = game;
     this.elements = {};
-    for (const id of ['skip-peace', 'mobile-hud', 'mobile-notice', 'mobile-hp', 'mobile-level', 'mobile-hp-fill',
+    for (const id of ['event-continue', 'skip-peace', 'mobile-hud', 'mobile-notice', 'mobile-hp', 'mobile-level', 'mobile-hp-fill',
       'mobile-exp-fill', 'mobile-timer', 'mobile-timer-label', 'mobile-controller-zone', 'pause-menu',
-      'pause-stats', 'mobile-pause', 'mobile-resume', 'mobile-sound', 'mobile-fullscreen']) {
+      'pause-stats', 'mobile-pause', 'mobile-resume', 'mobile-sound']) {
       this.elements[id] = document.getElementById(id);
     }
     this.menu = this.elements['pause-menu'];
+    this.elements['event-continue'].addEventListener('click', () => {
+      if (!game.isGameInputBlocked() && game.eventState !== 'NONE' && game.eventLockoutTimer <= 0) game.endEventCutin();
+      this.syncVisibility();
+    });
     this.elements['skip-peace'].addEventListener('click', () => game.startBattle());
     this.elements['mobile-pause'].addEventListener('click', () => this.openMenu());
     this.elements['mobile-resume'].addEventListener('click', () => this.closeMenu());
@@ -16,10 +20,6 @@ class MobileUI {
     this.elements['mobile-sound'].addEventListener('click', () => {
       document.getElementById('sound-btn').click();
       this.syncSound();
-    });
-    this.elements['mobile-fullscreen'].addEventListener('click', () => {
-      this.closeMenu();
-      document.getElementById('fullscreen-btn').click();
     });
     document.getElementById('mobile-help').addEventListener('click', () => {
       this.closeMenu();
@@ -42,8 +42,6 @@ class MobileUI {
     this.game.clearInputState();
     this.elements['pause-stats'].textContent = `Lv.${this.game.player.level}　／　撃破 ${this.game.killCount} 体`;
     this.syncSound();
-    this.elements['mobile-fullscreen'].hidden = document.getElementById('fullscreen-btn').hidden;
-    this.elements['mobile-fullscreen'].textContent = document.getElementById('fullscreen-btn').textContent;
     this.menu.showModal();
     this.syncVisibility();
   }
@@ -84,6 +82,10 @@ class MobileUI {
     const g = this.game;
     const tutorialOpen = !document.getElementById('tutorial-overlay').classList.contains('hidden');
     const cinematic = g.eventState !== 'NONE' || !!g.assistCutin;
+    const eventButton = this.elements['event-continue'];
+    eventButton.hidden = g.state !== 'PLAYING' || g.mobilePortrait || g.orientationResumeRequired ||
+      this.isPaused || tutorialOpen || g.eventState === 'NONE';
+    eventButton.disabled = g.eventLockoutTimer > 0;
     const visible = g.state === 'PLAYING' && !g.mobilePortrait && !g.orientationResumeRequired &&
       !this.isPaused && !tutorialOpen && !cinematic;
     document.body.classList.toggle('play-controls-visible', visible);
@@ -111,7 +113,7 @@ class MobileUI {
     this.elements['mobile-hp-fill'].classList.toggle('low', p.hp / p.maxHp <= 0.3);
     this.elements['mobile-exp-fill'].style.width = `${Math.min(100, p.exp / p.nextExp * 100)}%`;
     const seconds = Math.max(0, Math.ceil(g.targetClearTime - g.survivalTime));
-    this.setText('mobile-timer-label', g.isVictoryClear ? '朝市を守った！' : g.finalBossPhase ? '総長を倒せ！' : '総長登場まで');
+    this.setText('mobile-timer-label', g.isVictoryClear ? '朝市を守った！' : g.finalBossPhase ? '総長を倒せ！' : '総長まで');
     this.setText('mobile-timer', g.isVictoryClear ? 'クリア' : g.finalBossPhase ? `残り ${g.remainingBossCount} 体` :
       `${String(Math.floor(seconds / 60)).padStart(2, '0')}:${String(seconds % 60).padStart(2, '0')}`);
   }

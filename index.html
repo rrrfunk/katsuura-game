@@ -11,8 +11,8 @@
   <title>ニャンと多忙な勝浦朝市！〜おつかい猫のヤンキー大乱闘〜 【SFC超美麗版】</title>
   <link rel="manifest" href="manifest.json">
   <link rel="apple-touch-icon" href="assets/apple-touch-icon.png">
-  <link rel="stylesheet" href="style.css?v=20260930_mobile_v6">
-  <link rel="stylesheet" href="mobile.css?v=20260930_skip_v8">
+  <link rel="stylesheet" href="style.css?v=20261001_ui_v9">
+  <link rel="stylesheet" href="mobile.css?v=20261001_ui_v9">
 </head>
 <body>
   <div id="game-container">
@@ -49,13 +49,13 @@
         </div>
         <button id="help-btn" class="ui-btn" title="操作説明（開いている間は一時停止）" aria-label="操作説明を開く。一時停止">❓ 説明</button>
         <button id="sound-btn" class="ui-btn" title="BGM/効果音 ON/OFF" aria-label="BGMと効果音を切り替える">🔊 BGM ON</button>
-        <button id="fullscreen-btn" class="ui-btn" title="全画面表示切り替え" aria-label="全画面表示を切り替える">⛶ 全画面</button>
       </div>
     </header>
 
     <!-- メインゲームキャンバス（ビューポート 880 x 495） -->
     <div id="canvas-wrapper">
       <canvas id="gameCanvas" width="880" height="495" tabindex="0"></canvas>
+      <button id="event-continue" type="button" hidden aria-label="敵の登場演出を閉じてゲームを再開">バトル開始</button>
       <button id="skip-peace" type="button" hidden aria-label="平和時間をスキップしてバトルへ">バトルへ <span aria-hidden="true">»</span></button>
 
       <!-- 0. ローディング画面（全アセット完全読み込み＆リアルタイム進捗ゲージ） -->
@@ -79,19 +79,7 @@
 
       <!-- 1. タイトル画面（ChatGPT生成の超美麗1枚絵全面＋STARTボタン連動ヒットボックス） -->
       <div id="title-overlay" class="overlay title-screen" style="background: url('assets/title_bg.webp?v=20260929_webp_lightweight_v1') center center / cover no-repeat !important;">
-        <button id="title-fullscreen-btn" class="title-fs-btn" title="全画面表示切り替え" aria-label="全画面表示を切り替える">⛶ 全画面</button>
         <button id="btn-quick-start" class="sfc-start-hitbox" title="START 出撃！" aria-label="出撃してゲームを始める"><span class="mobile-start-label">出撃する ▶</span></button>
-      </div>
-
-      <!-- 2. レベルアップ選択オーバーレイ（非表示のまま互換保持） -->
-      <div id="levelup-overlay" class="overlay hidden">
-        <div class="overlay-card levelup-card">
-          <div class="levelup-header">
-            <div class="levelup-badge">⭐ LEVEL UP! ⭐</div>
-            <h2 class="levelup-title">ミケがパワーアップ！</h2>
-          </div>
-          <div id="skill-choices" class="skill-choices-grid"></div>
-        </div>
       </div>
 
       <!-- 3. 操作説明チュートリアルオーバーレイ -->
@@ -193,7 +181,7 @@
         <div class="mobile-meter"><div id="mobile-hp-fill"></div></div>
         <div class="mobile-exp-meter" aria-label="次のレベルまでの経験値"><div id="mobile-exp-fill"></div></div>
       </div>
-      <div class="mobile-clock"><span id="mobile-timer-label">総長登場まで</span><strong id="mobile-timer">02:00</strong></div>
+      <div class="mobile-clock"><span id="mobile-timer-label">総長まで</span><strong id="mobile-timer">02:00</strong></div>
       <button id="mobile-pause" type="button" aria-label="一時停止メニューを開く"><span aria-hidden="true">Ⅱ</span></button>
     </div>
     <div id="mobile-notice" hidden role="status"></div>
@@ -219,11 +207,10 @@
     <p id="pause-stats"></p>
     <div class="pause-actions">
       <button id="mobile-sound" type="button">音：ON</button>
-      <button id="mobile-fullscreen" type="button">全画面表示</button>
       <button id="mobile-help" type="button">遊び方</button>
       <button id="mobile-title" type="button">タイトルへ戻る</button>
     </div>
-    <p class="pause-note">右下のスティックで移動。攻撃は自動！<br>ブラウザバーなしで遊ぶには、共有から「ホーム画面に追加」して開いてね。</p>
+    <p class="pause-note">右下のスティックで移動。攻撃は自動！</p>
   </dialog>
 
   <div id="orientation-overlay" class="hidden" role="dialog" aria-modal="true" aria-labelledby="orientation-title" aria-describedby="orientation-copy">
@@ -231,23 +218,18 @@
       <div class="orientation-icon" aria-hidden="true">↻</div>
       <h1 id="orientation-title">端末を横向きにしてね</h1>
       <p id="orientation-copy">このゲームはスマートフォンを横にして遊べるよ。横向きになったら、タイトルの「出撃」から始めてね。</p>
-      <button id="orientation-fullscreen-btn" type="button">全画面表示を試す</button>
-      <p class="orientation-note">縦画面ではゲームは進まないよ。ブラウザの全画面が使えない場合は、横向きのままプレイできます。</p>
+      <button id="orientation-resume-btn" type="button" hidden>続ける</button>
+      <p class="orientation-note">縦画面ではゲームは進まないよ。端末を横向きにして遊んでね。</p>
     </div>
   </div>
 
-  <div id="safari-fullscreen-toast" class="hidden" role="status" aria-live="polite">
-    <span class="toast-icon" aria-hidden="true">ℹ️</span>
-    <span class="toast-text">このブラウザではページ全画面が使えない場合があります。</span>
-    <button id="btn-close-safari-toast" class="toast-close-btn" type="button" aria-label="案内を閉じる">閉じる</button>
-  </div>
 
   <!-- 分割スクリプト群（サウンド、定数、ゲーム本体） -->
   <script src="js/sound.js?v=20260930_mobile_v6"></script>
   <script src="js/balance.js?v=20260930_rush_v7"></script>
   <script src="js/constants.js?v=20260930_mobile_v6"></script>
   <script src="js/peace-scene.js?v=20260930_rush_v7"></script>
-  <script src="js/mobile-ui.js?v=20260930_skip_v8"></script>
-  <script src="js/game.js?v=20260930_skip_v8"></script>
+  <script src="js/mobile-ui.js?v=20261001_ui_v9"></script>
+  <script src="js/game.js?v=20261001_ui_v9"></script>
 </body>
 </html>

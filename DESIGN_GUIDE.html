@@ -85,7 +85,7 @@
     <section>
       <h2>操作と状態</h2>
       <div class="demo"><button type="button">出撃する</button><button class="secondary" type="button">遊び方を見る</button><span class="measure">主要タップ領域: 48px以上<br>基準余白: 8 / 12 / 16 / 24px</span></div>
-      <p class="muted" style="margin-top:16px">開始・再開・全画面・説明の状態を正しく伝える。Fullscreen APIが使えない場合はブラウザが許す表示へ案内し、成功したように見せない。キーボード操作には見えるフォーカスを付ける。</p>
+      <p class="muted" style="margin-top:16px">開始・再開・説明の状態を正しく伝える。全画面操作は設けず、可視領域に合わせて画面を広げる。キーボード操作には見えるフォーカスを付ける。</p>
     </section>
     <section>
       <h2>確認する画面</h2>
@@ -97,6 +97,7 @@
     </section>
     <section><h2>援護をつなぐ朝市</h2><p>アイテムを急いで回収し、走るノラ・自転車・神輿で大群に道を開く。ノラは赤ハチマキのドット絵4コマでジグザグ走行。平和時間だけ、店への接近に応じて生成済みの短い挨拶を1件表示する。</p></section>
     <p class="muted">平和時間の「バトルへ」はキャンバス左下に表示。文字16px・高さ48px以上。戦闘中やメニュー表示中は隠す。</p>
+    <p class="muted">時間は「総長まで 02:00」の1行・高さ30px。敵登場は右下の実ボタン、レベルアップはミケ付近に0.7秒のLVUP!と発光。</p>
     <footer class="muted" style="margin-top:24px;font-size:14px">設計基準: <a href="https://design.digital.go.jp/dads/foundations/typography/">DADS タイポグラフィ</a> · <a href="https://design.digital.go.jp/dads/foundations/color/accessibility/">色とアクセシビリティ</a> · <a href="https://design.digital.go.jp/dads/foundations/spacing/">余白</a> · iPhone Chrome/Safariではブラウザバーが残る前提で、実機の可視領域内にゲーム画面を最大化する。</footer>
   </main>
 </body>
