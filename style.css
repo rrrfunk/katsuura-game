@@ -1982,6 +1982,9 @@ body.mobile-landscape.game-title #game-container {
 body.mobile-landscape.game-title #ui-header {
   display: none !important;
 }
+body.mobile-landscape.game-title #mobile-controller-zone {
+  display: none !important;
+}
 body.mobile-landscape.game-title #canvas-wrapper {
   grid-row: 1 !important;
   width: min(calc(100vw - 16px - env(safe-area-inset-left, 0px) - env(safe-area-inset-right, 0px)), calc((100dvh - env(safe-area-inset-top, 0px) - env(safe-area-inset-bottom, 0px)) * 16 / 9)) !important;
