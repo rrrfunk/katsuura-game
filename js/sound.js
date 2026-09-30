@@ -9,6 +9,7 @@
 class SoundSystem {
   constructor() {
     this.ctx = null;
+    this.audioContextResumePromise = null;
     this.noiseBuffer = null;
     this.soundEnabled = true;
     this.bgmPlaying = false;
@@ -18,6 +19,7 @@ class SoundSystem {
     // 平和モードBGM用タイマー・状態
     this.peaceBgmTimer = null;
     this.peaceBgmPlaying = false;
+    this.peaceBgmGeneration = 0;
 
     // ユーザー提供の本格戦闘BGM（高品質・軽量AAC最適化版：assets/bgm.m4a）
     this.bgmAudio = new Audio('assets/bgm.m4a');
@@ -62,14 +64,40 @@ class SoundSystem {
   }
 
   init() {
-    if (!this.ctx) {
-      const AudioCtx = window.AudioContext || window.webkitAudioContext;
-      this.ctx = new AudioCtx();
-      this.createNoiseBuffer();
-      this.loadCustomAudioBuffers();
+    const AudioCtx = window.AudioContext || window.webkitAudioContext;
+    if ((!this.ctx || this.ctx.state === 'closed') && AudioCtx) {
+      try {
+        this.ctx = new AudioCtx();
+        this.createNoiseBuffer();
+        this.loadCustomAudioBuffers();
+      } catch (error) {
+        console.warn('Audio context could not be created', error);
+        this.ctx = null;
+        return Promise.resolve(false);
+      }
     }
-    if (this.ctx.state === 'suspended') {
-      this.ctx.resume();
+    if (!this.ctx || this.ctx.state === 'closed') return Promise.resolve(false);
+    if (this.ctx.state === 'running') return Promise.resolve(true);
+    if (this.audioContextResumePromise) return this.audioContextResumePromise;
+
+    // resume()を同期的に呼び出し、ユーザー操作の再生許可を保持する。
+    const context = this.ctx;
+    try {
+      this.audioContextResumePromise = Promise.resolve(context.resume())
+        .then(() => context.state === 'running')
+        .catch((error) => {
+          console.warn('Audio context resume was blocked', error);
+          return false;
+        })
+        .then((isRunning) => {
+          this.audioContextResumePromise = null;
+          return isRunning;
+        });
+      return this.audioContextResumePromise;
+    } catch (error) {
+      console.warn('Audio context resume failed', error);
+      this.audioContextResumePromise = null;
+      return Promise.resolve(false);
     }
   }
 
@@ -721,9 +749,7 @@ class SoundSystem {
     this.stopPeaceBGM();
     this.currentBgmType = 'PEACE';
     if (!this.soundEnabled) return;
-    this.init();
-
-    this.peaceBgmPlaying = true;
+    const generation = this.peaceBgmGeneration;
 
     // のどかな朝市のメロディループ
     const melody = [
@@ -750,15 +776,50 @@ class SoundSystem {
       this.peaceBgmTimer = setTimeout(playNext, duration * 1000);
     };
 
-    playNext();
+    // iPhone Safari等ではresume()完了前に鳴らすと、最初の音が捨てられることがある。
+    // 音声コンテキストが再生可能になってからメロディを開始する。
+    Promise.resolve(this.init()).then((isRunning) => {
+      if (!isRunning || !this.soundEnabled || this.currentBgmType !== 'PEACE' ||
+          this.peaceBgmGeneration !== generation) return;
+      this.peaceBgmPlaying = true;
+      playNext();
+    }).catch((error) => {
+      console.warn('Peace BGM could not start', error);
+    });
   }
 
   // 平和モードBGM停止
   stopPeaceBGM() {
+    this.peaceBgmGeneration++;
     this.peaceBgmPlaying = false;
     if (this.peaceBgmTimer) {
       clearTimeout(this.peaceBgmTimer);
       this.peaceBgmTimer = null;
+    }
+  }
+
+  // Safariでタブや音声デバイスから戻った後、次の操作で現在のBGMを復帰する。
+  resumeCurrentBGM() {
+    if (!this.soundEnabled || this.currentBgmType === 'NONE') return Promise.resolve(false);
+    const type = this.currentBgmType;
+
+    if (type === 'PEACE') {
+      if (this.ctx && this.ctx.state !== 'running' && this.peaceBgmPlaying) {
+        this.stopPeaceBGM();
+      }
+      return Promise.resolve(this.init()).then((isRunning) => {
+        if (!isRunning || !this.soundEnabled || this.currentBgmType !== 'PEACE') return false;
+        if (!this.peaceBgmPlaying) this.startPeaceBGM();
+        return true;
+      }).catch(() => false);
+    }
+
+    const audio = type === 'BATTLE' ? this.bgmAudio : this.clearBgmAudio;
+    if (!audio || !audio.paused) return Promise.resolve(true);
+    try {
+      return Promise.resolve(audio.play()).then(() => true).catch(() => false);
+    } catch (error) {
+      return Promise.resolve(false);
     }
   }
 

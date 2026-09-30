@@ -267,6 +267,7 @@ class AsaichiGame {
     if (this.mobilePortrait || !this.orientationResumeRequired) return false;
     this.orientationResumeRequired = false;
     this.refreshPresentationState();
+    this.sound.resumeCurrentBGM();
     return true;
   }
 
@@ -644,8 +645,12 @@ class AsaichiGame {
     window.addEventListener('resize', handleOrientation, { passive: true });
     window.addEventListener('orientationchange', handleOrientation, { passive: true });
     window.visualViewport?.addEventListener('resize', handleOrientation, { passive: true });
+    const resumeAudioFromGesture = () => this.sound.resumeCurrentBGM();
+    window.addEventListener('pointerdown', resumeAudioFromGesture, { capture: true, passive: true });
+    window.addEventListener('keydown', resumeAudioFromGesture, { capture: true });
     document.addEventListener('visibilitychange', () => {
       if (document.hidden) this.clearInputState();
+      else this.sound.resumeCurrentBGM();
     });
     window.addEventListener('blur', () => this.clearInputState());
     this.refreshPresentationState();
