@@ -335,7 +335,7 @@ class AsaichiGame {
       { img: this.images.cutinNoraneko,      src: `assets/cutin_noraneko.webp?v=${cacheKey}` },
       { img: this.images.tandemBike,         src: `assets/tandem_bike.webp?v=${cacheKey}` },
       { img: this.images.mikoshi,            src: `assets/katsuura_mikoshi.webp?v=${cacheKey}` },
-      { img: this.images.allyCat,            src: 'assets/ally_noraneko.webp?v=20260930_mobile_v6' },
+      { img: this.images.allyCat,            src: 'assets/nora_run.webp?v=20260930_rush_v7' },
       { img: this.images.cat,                src: `assets/cat_sprites.webp?v=${cacheKey}` },
       { img: this.images.yankees,            src: `assets/yankee_sprites.webp?v=${cacheKey}` },
       { img: this.images.items,              src: `assets/items.webp?v=${cacheKey}` }
@@ -504,6 +504,7 @@ class AsaichiGame {
   // 入力・表示・描画ループを責務別の登録処理へ分ける
   initEvents() {
     this.mobileUI = new MobileUI(this);
+    this.peaceScene = new PeaceScene(this);
     this.initKeyboardEvents();
     this.initPresentationEvents();
     this.initPointerEvents();
@@ -1011,6 +1012,7 @@ class AsaichiGame {
     this.orientationResumeRequired = false;
 
     this.runId++;
+    this.peaceScene?.reset();
     this.resultFinalizedForRun = false;
     this.victoryClearTimerRemaining = 0;
     this.assistCutin = null;
@@ -1196,7 +1198,7 @@ class AsaichiGame {
       this.sound.startBattleBGM();
       this.itemSpawnTimer = 2.0; // 2秒後に最初のアイスコーヒー確定出現
       this.screenShake = 0.45;
-      this.showLevelUpBanner('⚠️ 勝浦ヤンキー集団が朝市に乱入！', '迫りくるヤンキーを自動爪撃で撃退せよ！');
+      this.showLevelUpBanner('⚠️ 勝浦ヤンキー集団が朝市に乱入！', 'アイテムを急いで拾って、助っ人の援護をつなごう！');
     } else if (prevState === 'KYON') {
       this.screenShake = 0.35;
       this.showLevelUpBanner('🦌 野生のキョンが乱入！', 'すばしっこいキョンに気をつけろ！');
@@ -1265,8 +1267,8 @@ class AsaichiGame {
     const boss = this.spawnEnemy('boss_yankee', bossX, bossY);
     boss.isBoss = true;
     boss.isFinalBoss = true;
-    boss.hp = 2200; // 手応えと爽快感を両立したボスHP
-    boss.maxHp = 2200;
+    boss.hp = GAME_BALANCE.finalBossHp;
+    boss.maxHp = boss.hp;
     boss.speed = 2.0;
     boss.atk = 42;
     boss.name = '👑 初代 勝浦暴走族総長';
@@ -1373,6 +1375,7 @@ class AsaichiGame {
     }
 
     this.updatePlayer(dt);
+    this.peaceScene?.update(dt);
     this.updateKittens(dt);
     this.updateSkills(dt);
     this.updateTandemRushes(dt);
@@ -1955,7 +1958,7 @@ class AsaichiGame {
     });
 
     const targets = visibleEnemies.length > 0 ? visibleEnemies.slice(0, 10) : this.enemies.slice(0, 6);
-    const dmg = 120 * (1 + (this.skills.lightning.level - 1) * 0.35);
+    const dmg = 120 * (1 + (this.skills.lightning.level - 1) * 0.35) * GAME_BALANCE.autoAttackMultiplier;
 
     targets.forEach(e => {
       if (!this.damageEnemy(e, dmg)) return;
@@ -1988,6 +1991,7 @@ class AsaichiGame {
   // タンデムクロスバイク爆走（60代男女の超高速薙ぎ払い）
   // ========================================================
   triggerTandemBikeRush() {
+    if (this.tandemRushes.length >= GAME_BALANCE.maxTandems) this.tandemRushes.shift();
     const dir = Math.random() < 0.5 ? 1 : -1; // 1: 左から右, -1: 右から左
     const startX = dir === 1 ? this.camera.x - 220 : this.camera.x + this.viewW + 220;
     const y = Math.max(130, Math.min(this.worldH - 130, this.player.y + (Math.random() - 0.5) * 40));
@@ -2059,8 +2063,6 @@ class AsaichiGame {
   // ========================================================
   triggerMikoshiRush(count = 2) {
     const dir = Math.random() < 0.5 ? 1 : -1; // 1: 左から右, -1: 右から左
-    const runId = this.runId;
-
     const spawnOne = (c) => {
       if (this.state !== 'PLAYING') return;
       const startX = dir === 1 ? this.camera.x - 340 - c * 180 : this.camera.x + this.viewW + 340 + c * 180;
@@ -2068,7 +2070,9 @@ class AsaichiGame {
       const yOffset = (c === 0 ? -40 : 40) + (Math.random() - 0.5) * 20;
       const y = Math.max(450, Math.min(this.worldH - 140, this.player.y + yOffset));
 
+      if (this.mikoshiRushes.length >= GAME_BALANCE.maxMikoshi) this.mikoshiRushes.shift();
       this.mikoshiRushes.push({
+        delay: c * 0.14,
         x: startX,
         y: y,
         dir: dir,
@@ -2086,15 +2090,8 @@ class AsaichiGame {
       this.sound.playMikoshiSound();
     };
 
-    // 1基目は即座に同期出撃！
-    spawnOne(0);
-
-    // 2基目以降はわずかなディレイ（140ms）で時間差追従出撃！
-    for (let c = 1; c < count; c++) {
-      setTimeout(() => {
-        if (this.runId === runId) spawnOne(c);
-      }, c * 140);
-    }
+    // ゲーム時間で遅延させるため、一時停止中・リトライ後に出現しない。
+    for (let c = 0; c < count; c++) spawnOne(c);
 
     this.screenShake = 0.38; // 重厚な地響き！
     this.addComicPopup(this.player.x, this.player.y - 45, '🏮 勝浦神輿軍団 参上！！', '#f59e0b');
@@ -2106,6 +2103,7 @@ class AsaichiGame {
 
     for (let i = this.mikoshiRushes.length - 1; i >= 0; i--) {
       const t = this.mikoshiRushes[i];
+      if (t.delay > 0) { t.delay -= dt; continue; }
       t.x += t.dir * t.speed * dt;
       t.smokeTimer += dt;
       t.bobTimer += dt * 14; // リズミカルな上下「ヨイショ！」の波
@@ -2279,7 +2277,7 @@ class AsaichiGame {
             const lastHit = pr.hitCooldowns ? pr.hitCooldowns.get(e) || 0 : 0;
             if (pr.age - lastHit >= 0.20) {
               if (pr.hitCooldowns) pr.hitCooldowns.set(e, pr.age);
-              if (!this.damageEnemy(e, pr.damage, pr.x, pr.y)) continue;
+              if (!this.damageEnemy(e, pr.damage * GAME_BALANCE.autoAttackMultiplier, pr.x, pr.y)) continue;
               this.sound.playHit();
               for (let s = 0; s < 3; s++) this.addParticle(pr.x, pr.y, 'splash');
               for (let s = 0; s < 2; s++) this.addParticle(pr.x, pr.y, 'spark');
@@ -2310,7 +2308,7 @@ class AsaichiGame {
         const dy = e.y - pr.y;
         const hitRadius = pr.isKitten ? (e.w / 2 + 8) : (e.w / 2 + 11);
         if (dx * dx + dy * dy < hitRadius * hitRadius) {
-          if (!this.damageEnemy(e, pr.damage, pr.x, pr.y)) continue;
+          if (!this.damageEnemy(e, pr.damage * GAME_BALANCE.autoAttackMultiplier, pr.x, pr.y)) continue;
           if (pr.hitEnemies) pr.hitEnemies.push(e);
           this.sound.playHit();
           pr.penetrate--;
@@ -2349,14 +2347,8 @@ class AsaichiGame {
     // ★ユーザー要望：15.0秒未満は敵スポーン完全停止（平和な勝浦朝市散策タイムを満喫！）
     if (time < 15.0) return;
 
-    // モバイル・スマホ横持ちでも完全ノンストップ動作！最大20体上限＆高テンポ出現
-    let spawnInterval = 0.90;
-    let maxEnemies = 8;
-    let spawnBatch = 1;
-
-    if (time > 25) { spawnInterval = 0.60; maxEnemies = 12; spawnBatch = 1; }
-    if (time > 45) { spawnInterval = 0.45; maxEnemies = 16; spawnBatch = 1; }
-    if (time > 75) { spawnInterval = 0.32; maxEnemies = 20; spawnBatch = 2; }
+    const wave = GAME_BALANCE.waves.reduce((current, next) => time >= next.from ? next : current);
+    const { interval: spawnInterval, cap: maxEnemies, batch: spawnBatch } = wave;
 
     if (this.enemySpawnTimer >= spawnInterval && this.enemies.length < maxEnemies) {
       this.enemySpawnTimer = 0;
@@ -2395,10 +2387,10 @@ class AsaichiGame {
     }
 
     // ラッシュイベント（中盤以降に発生。画面外通路から大軍勢が押し寄せる！）
-    if (time >= 45 && this.hordeTimer >= (time >= 75 ? 9.0 : 13.0)) {
+    if (time >= GAME_BALANCE.horde.start && this.hordeTimer >= (time >= 80 ? GAME_BALANCE.horde.lateInterval : GAME_BALANCE.horde.interval)) {
       this.hordeTimer = 0;
       const hordeType = Math.random() < 0.5 ? 'kyon' : 'tsuppari';
-      const hordeCount = time >= 75 ? 5 : 3;
+      const hordeCount = time >= 80 ? GAME_BALANCE.horde.lateCount : GAME_BALANCE.horde.count;
       for (let h = 0; h < hordeCount; h++) {
         if (this.enemies.length < maxEnemies) {
           this.spawnEnemy(hordeType);
@@ -2469,6 +2461,11 @@ class AsaichiGame {
       conf = { type, hp: 1200, maxHp: 1200, speed: 2.1, atk: 42, w: 64, h: 72, color: '#991b1b', isBoss: true, name: '暴走族総長' };
     }
 
+    if (!conf.isBoss) {
+      conf.hp = Math.round(conf.hp * GAME_BALANCE.enemyHpMultiplier);
+      conf.maxHp = conf.hp;
+      conf.speed *= GAME_BALANCE.enemySpeedMultiplier;
+    }
     const enemyObj = {
       ...conf,
       x: sx,
@@ -2719,7 +2716,7 @@ class AsaichiGame {
 
     // 敵撃破時のアイテムドロップ（★ゲームバランス調整：適度なドロップで緊張感を維持！）
     const nowSec = this.survivalTime || 0;
-    const maxItems = 3; // 画面上に最大3個まで
+    const maxItems = GAME_BALANCE.items.cap; // 画面上に最大3個まで
     const currentItemCount = this.dropItems ? this.dropItems.length : 0;
     const canDropByCount = currentItemCount < maxItems;
     const isBossDrop = enemy.isBoss;
@@ -2748,7 +2745,7 @@ class AsaichiGame {
         type: dropType,
         x: dropX,
         y: dropY,
-        life: 20 // 生存時間20秒
+        life: GAME_BALANCE.items.life, age: 0
       });
       for (let s = 0; s < 6; s++) {
         this.addParticle(dropX, dropY, dropType === 'coffee' ? 'smoke' : dropType === 'tantan' ? 'spark' : 'confetti');
@@ -2765,11 +2762,11 @@ class AsaichiGame {
     this.itemSpawnTimer -= dt;
 
     if (this.itemSpawnTimer <= 0) {
-      // 次の出現タイマー（6.0〜9.0秒の適正ペース）
-      this.itemSpawnTimer = 6.0 + Math.random() * 3.0;
+      // 次の品物まで約3〜4秒。早期回収時は collectItem で短縮する。
+      this.itemSpawnTimer = GAME_BALANCE.items.interval + (Math.random() * 2 - 1) * GAME_BALANCE.items.jitter;
 
       // フィールド上の最大数は3個
-      const maxItems = 3;
+      const maxItems = GAME_BALANCE.items.cap;
       if (this.dropItems && this.dropItems.length >= maxItems) return;
 
       this.spawnRandomMarketItem();
@@ -2779,7 +2776,7 @@ class AsaichiGame {
   // 朝市名物アイテムの自然スポーン（★ユーザー指定の赤目印エリア限定！）
   spawnRandomMarketItem() {
     const p = this.player;
-    const maxItems = 3;
+    const maxItems = GAME_BALANCE.items.cap;
 
     // 画面全体の上限を超えていたら生成しない
     if (this.dropItems && this.dropItems.length >= maxItems) return;
@@ -2797,7 +2794,7 @@ class AsaichiGame {
       const testY = z.y + pad + Math.random() * Math.max(1, z.h - pad * 2);
 
       const dist = Math.hypot(p.x - testX, p.y - testY);
-      if (this.isPointWalkable(testX, testY) && dist > 60 && dist < 500) {
+      if (this.isPointWalkable(testX, testY) && dist >= GAME_BALANCE.items.minDistance && dist <= GAME_BALANCE.items.maxDistance) {
         spawnX = testX;
         spawnY = testY;
         foundSafeSpot = true;
@@ -2830,7 +2827,7 @@ class AsaichiGame {
       type: itemType,
       x: spawnX,
       y: spawnY,
-      life: 20 // 20秒で自然消滅
+      life: GAME_BALANCE.items.life, age: 0
     });
 
     // ポップ出現のパーティクル
@@ -2852,6 +2849,7 @@ class AsaichiGame {
     for (let i = this.dropItems.length - 1; i >= 0; i--) {
       const item = this.dropItems[i];
       item.life -= dt;
+      item.age = (item.age || 0) + dt;
 
       const dist = Math.hypot(p.x - item.x, p.y - item.y);
 
@@ -2879,6 +2877,10 @@ class AsaichiGame {
   // アイテム回収効果（★ユーザー要望：HP回復の過剰を完全是正！回復ではなく援護攻撃・バフに特化！）
   collectItem(item) {
     const p = this.player;
+    // すぐ回収したら次が早く現れる。回収を止めると通常間隔へ戻る。
+    if ((item.age ?? GAME_BALANCE.items.life) <= GAME_BALANCE.items.quickPickupWindow) {
+      this.itemSpawnTimer = Math.min(this.itemSpawnTimer, GAME_BALANCE.items.nextAfterQuickPickup);
+    }
 
     if (item.type === 'coffee') {
       // ☕ SPICE COFFEE（アイスコーヒー）：移動速度1.3倍加速バフ ＋ タンデム自転車突進！
@@ -2921,222 +2923,63 @@ class AsaichiGame {
   // ========================================================
   // 助太刀仲間にゃんこシステム（電光石火の疾風援護：カットイン格闘ノラネコ豪快突入！）
   // ========================================================
-  spawnAllyCat(specificType = null) {
-    // カットインの「道着・赤ハチマキの格闘家ノラネコ」に統一してド迫力演出！
-    const type = specificType || 'tora';
+  spawnAllyCat() {
+    const cfg = GAME_BALANCE.nora;
     const p = this.player;
-
-    // 登場位置（画面左右の外側から音速突入）
-    const fromLeft = Math.random() < 0.5;
-    const startX = fromLeft ? p.x - 360 : p.x + 360;
-    const startY = p.y + (Math.random() - 0.5) * 60;
-
-    const ally = {
-      type,
-      x: startX,
-      y: startY,
-      targetX: p.x + (fromLeft ? 65 : -65),
-      targetY: p.y,
-      dir: fromLeft ? 'right' : 'left',
-      state: 'entering', // 'entering' (約0.2s) -> 'acting' (約0.5s) -> 'leaving' (約0.25s)
-      stateTimer: 0,
-      animTimer: 0,
-      animFrame: 0,
-      scale: 1.35, // 格闘家ノラネコの堂々たる体格！
-      actTick: 0
-    };
-
-    this.allyCats.push(ally);
+    const direction = Math.random() < 0.5 ? 1 : -1;
+    if (this.allyCats.length >= cfg.maxActive) this.allyCats.shift();
+    this.allyCats.push({
+      x: Math.max(25, Math.min(this.worldW - 25, p.x - direction * 290)),
+      y: Math.max(550, Math.min(665, p.y)),
+      baseY: Math.max(555, Math.min(650, p.y)),
+      direction, dir: direction > 0 ? 'right' : 'left',
+      elapsed: 0, animFrame: 0, scale: 1, smokeTimer: 0, hits: new Map()
+    });
     this.sound.playMeowRoar();
   }
 
   updateAllyCats(dt) {
-    const p = this.player;
-
+    const cfg = GAME_BALANCE.nora;
     for (let i = this.allyCats.length - 1; i >= 0; i--) {
       const cat = this.allyCats[i];
-      cat.stateTimer += dt;
-      cat.animTimer += dt * 14;
-      cat.animFrame = Math.floor(cat.animTimer);
-
-      if (cat.state === 'entering') {
-        // 音速ダッシュでプレイヤーの近くへ急行（約0.2秒）
-        const dx = cat.targetX - cat.x;
-        const dy = cat.targetY - cat.y;
-        const dist = Math.hypot(dx, dy);
-        cat.dir = dx >= 0 ? 'right' : 'left';
-
-        if (dist < 50 || cat.stateTimer > 0.22) {
-          cat.state = 'acting';
-          cat.stateTimer = 0;
-        } else {
-          cat.x += (dx / dist) * 1400 * dt;
-          cat.y += (dy / dist) * 1400 * dt;
-        }
-      } else if (cat.state === 'acting') {
-        // 凝縮された大技炸裂（0.5秒間）
-        this.executeAllyAction(cat, dt);
-
-        if (cat.stateTimer >= 0.50) {
-          cat.state = 'leaving';
-          cat.stateTimer = 0;
-          cat.leaveDirX = cat.dir === 'right' ? 1 : -1;
-        }
-      } else if (cat.state === 'leaving') {
-        // 一瞬で画面外へ音速離脱（約0.25秒）
-        cat.x += cat.leaveDirX * 1550 * dt;
-
-        if (Math.abs(cat.x - p.x) > 520 || cat.stateTimer > 0.28) {
-          this.allyCats.splice(i, 1);
-        }
+      cat.elapsed += dt;
+      if (cat.elapsed >= cfg.duration) { this.allyCats.splice(i, 1); continue; }
+      // 街路内を左右に駆け抜ける。三角波の折返しでジグザグを描く。
+      cat.x += cat.direction * cfg.speed * dt;
+      if (cat.x < 25 || cat.x > this.worldW - 25) {
+        cat.x = Math.max(25, Math.min(this.worldW - 25, cat.x));
+        cat.direction *= -1;
+      }
+      const phase = (cat.elapsed / cfg.zigzagPeriod) % 1;
+      const zigzag = 1 - 4 * Math.abs(phase - 0.5);
+      cat.y = Math.max(542, Math.min(682, cat.baseY + zigzag * cfg.amplitude));
+      cat.dir = cat.direction > 0 ? 'right' : 'left';
+      cat.animFrame = Math.floor(cat.elapsed * 12) % 4;
+      cat.smokeTimer += dt;
+      if (cat.smokeTimer >= 0.12) {
+        cat.smokeTimer = 0;
+        this.addParticle(cat.x - cat.direction * 18, cat.y, 'smoke');
+      }
+      // 同じ敵への連続ヒットに間隔を設け、ボスを瞬殺するのを防ぐ。
+      for (const enemy of [...this.enemies]) {
+        if (Math.hypot(enemy.x - cat.x, enemy.y - cat.y) > cfg.hitRadius) continue;
+        if (cat.elapsed < (cat.hits.get(enemy) || 0)) continue;
+        cat.hits.set(enemy, cat.elapsed + cfg.hitCooldown);
+        if (!this.damageEnemy(enemy, cfg.damage, cat.x, cat.y)) continue;
+        enemy.stunTimer = 0.3;
+        enemy.knockbackVx = cat.direction * 180;
+        this.addParticle(enemy.x, enemy.y - 18, 'spark');
       }
     }
   }
 
-  executeAllyAction(cat, dt) {
-    cat.actTick = (cat.actTick || 0) + dt;
-
-    if (cat.type === 'tora') {
-      // ★必殺肉球メガスタンプ＆金剛衝撃波（カットイン格闘ノラネコ真奥義！）
-      if (cat.stateTimer < 0.18) {
-        cat.y -= 240 * dt; // 高く跳躍
-      } else if (!cat.stomped) {
-        cat.stomped = true;
-        cat.y = this.player.y + 10;
-        this.sound.playEnemyDefeat();
-        this.sound.playMeowRoar();
-        this.screenShake = 0.42;
-
-        const stompRadius = 320;
-        // 安全な配列コピーで敵をループ処理（配列破壊クラッシュを完全防止！）
-        const currentEnemies = [...this.enemies];
-        currentEnemies.forEach(e => {
-          const d = Math.hypot(e.x - cat.x, e.y - cat.y);
-          if (d <= stompRadius) {
-            if (!this.damageEnemy(e, 260)) return;
-            e.stunTimer = 2.0;
-            const nx = (e.x - cat.x) || 1;
-            const ny = (e.y - cat.y) || 0;
-            const nd = Math.hypot(nx, ny);
-            e.x += (nx / nd) * 90;
-            e.y += (ny / nd) * 90;
-          }
-        });
-
-        this.meowWaves.push({
-          x: cat.x,
-          y: cat.y,
-          currentRadius: 25,
-          maxRadius: stompRadius,
-          life: 0.45,
-          maxLife: 0.45
-        });
-
-        for (let s = 0; s < 24; s++) {
-          this.addParticle(cat.x, cat.y, 'spark');
-          this.addParticle(cat.x, cat.y, 'confetti');
-        }
-      }
-
-    } else if (cat.type === 'kuro') {
-      // 忍びのクロ：電光石火のチビ爪撃
-      if (cat.actTick >= 0.15) {
-        cat.actTick = 0;
-        this.sound.playSlash();
-
-        for (let a = 0; a < 2; a++) {
-          const ang = Math.random() * Math.PI * 2;
-          this.projectiles.push({
-            type: 'scratch',
-            x: cat.x,
-            y: cat.y - 12,
-            vx: Math.cos(ang) * 580,
-            vy: Math.sin(ang) * 580,
-            life: 0.28,
-            damage: 24,
-            penetrate: 2,
-            hitEnemies: [],
-            isAlly: true
-          });
-        }
-        for (let s = 0; s < 3; s++) this.addParticle(cat.x, cat.y - 10, 'spark');
-      }
-
-      const currentEnemies = [...this.enemies];
-      currentEnemies.forEach(e => {
-        const d = Math.hypot(e.x - cat.x, e.y - cat.y);
-        if (d < 110 && (!e.allyHitTimer || e.allyHitTimer <= 0)) {
-          if (!this.damageEnemy(e, 22)) return;
-          e.allyHitTimer = 0.25;
-          e.stunTimer = 0.5;
-        }
-      });
-
-    } else if (cat.type === 'chibi') {
-      // 疾風チビ：超高速回転しながら魚雷乱射
-      const rotSpeed = 16.0;
-      cat.orbitAngle = (cat.orbitAngle || 0) + rotSpeed * dt;
-      const orbitR = 120;
-      cat.x = this.player.x + Math.cos(cat.orbitAngle) * orbitR;
-      cat.y = this.player.y + Math.sin(cat.orbitAngle) * (orbitR * 0.7);
-
-      if (cat.actTick >= 0.08) {
-        cat.actTick = 0;
-        this.sound.playBoomerang();
-        for (let b = 0; b < 2; b++) {
-          const shootAng = cat.orbitAngle + (b === 0 ? Math.PI / 2 : -Math.PI / 2);
-          this.projectiles.push({
-            type: 'scratch',
-            x: cat.x,
-            y: cat.y,
-            vx: Math.cos(shootAng) * 720,
-            vy: Math.sin(shootAng) * 720,
-            life: 0.40,
-            damage: 55,
-            penetrate: 99,
-            hitEnemies: [],
-            isAlly: true
-          });
-        }
-      }
-
-      const currentEnemies = [...this.enemies];
-      currentEnemies.forEach(e => {
-        const d = Math.hypot(e.x - cat.x, e.y - cat.y);
-        if (d < 80 && (!e.allyHitTimer || e.allyHitTimer <= 0)) {
-          if (!this.damageEnemy(e, 65)) return;
-          e.allyHitTimer = 0.12;
-          e.stunTimer = 1.0;
-        }
-      });
-
-    } else if (cat.type === 'shiro') {
-      // 神使シロ：全体天罰落雷＆スタン
-      if (!cat.heavensFired) {
-        cat.heavensFired = true;
-        this.sound.playTaiko();
-        this.screenShake = 0.32;
-
-        const currentEnemies = [...this.enemies];
-        currentEnemies.forEach(e => {
-          if (!this.damageEnemy(e, 150)) return;
-          e.stunTimer = 2.0;
-          for (let s = 0; s < 2; s++) this.addParticle(e.x, e.y, 'spark');
-        });
-
-        this.meowWaves.push({
-          x: cat.x,
-          y: cat.y,
-          currentRadius: 30,
-          maxRadius: 420,
-          life: 0.5,
-          maxLife: 0.5
-        });
-      }
-    }
+  // 4コマを同じ接地位置で切り出す。上下の透明余白でキャラが小さくならないようにする。
+  getNoraFrame(frame = 0) {
+    const sprite = this.images.allyCat;
+    return { sx: (frame % 4) * sprite.naturalWidth / 4, sy: 80,
+      sw: sprite.naturalWidth / 4, sh: 220 };
   }
 
-  // 助太刀仲間にゃんこ描画（文字吹き出し完全撤廃・スタイリッシュなアクションのみ）
   drawAllyCat(ctx, cat) {
     ctx.save();
     ctx.translate(cat.x, cat.y);
@@ -3147,16 +2990,15 @@ class AsaichiGame {
     ctx.ellipse(0, 0, 18 * cat.scale, 7 * cat.scale, 0, 0, Math.PI * 2);
     ctx.fill();
 
-    // カットインと同じ赤ハチマキの格闘ノラネコ。ミケのシートを流用しない。
     const sprite = this.images.allyCat;
     if (sprite.complete && sprite.naturalWidth > 0) {
-      const height = 78 * cat.scale;
-      const width = height * sprite.naturalWidth / sprite.naturalHeight;
+      const { sx, sy, sw, sh } = this.getNoraFrame(cat.animFrame);
+      const height = 76;
+      const width = height * sw / sh;
       ctx.save();
       if (cat.dir === 'left') ctx.scale(-1, 1);
-      const lean = cat.state === 'acting' ? 0 : Math.sin(cat.animTimer) * 0.08;
-      ctx.rotate(lean);
-      ctx.drawImage(sprite, -width / 2, -height, width, height);
+      ctx.imageSmoothingEnabled = false;
+      ctx.drawImage(sprite, sx, sy, sw, sh, -width / 2, -height, width, height);
       ctx.restore();
     }
 
@@ -3172,7 +3014,7 @@ class AsaichiGame {
       p.exp -= p.nextExp;
       p.level++;
       // ダダサバイバー黄金比：Lv1=8, Lv2=22, Lv3=41, Lv4=67, Lv5=98...
-      p.nextExp = Math.round(8 + Math.pow(p.level, 1.75) * 5);
+      p.nextExp = Math.round(8 + Math.pow(p.level, 1.75) * GAME_BALANCE.levelExpGrowth);
 
       this.sound.playLevelUp();
       this.applyAutomaticEvolution(p.level);
@@ -3284,6 +3126,8 @@ class AsaichiGame {
     this.renderForeground(ctx);
 
     ctx.restore();
+
+    this.peaceScene?.render(ctx);
 
     // F. 落雷全画面フラッシュ
     this.renderLightningFlash(ctx);
@@ -3526,7 +3370,7 @@ class AsaichiGame {
     let subText = '勝浦朝市を自由にお散歩するニャ！（WASD / 矢印キーで移動）';
     if (isYankee) {
       speechText = '「ヤンキーだにゃ！朝市の平和を守るにゃー！」';
-      subText = 'オート攻撃でヤンキーを蹴散らし、経験値で強くなるニャ！';
+      subText = '朝市アイテムを急いで拾って、助っ人を呼ぶニャ！';
     } else if (isKyon) {
       speechText = '「キョンが現れたにゃ！すばしっこいから気をつけるニャ！」';
       subText = 'ピョンピョン跳ねて突進してくるニャ！周囲をよく見て回避するニャ！';
@@ -3789,8 +3633,9 @@ class AsaichiGame {
       } else {
         if (this.images.allyCat.complete && this.images.allyCat.naturalWidth > 0) {
           const sprite = this.images.allyCat;
-          const width = 200 * sprite.naturalWidth / sprite.naturalHeight;
-          ctx.drawImage(sprite, -width / 2, -100, width, 200);
+          const { sx, sy, sw, sh } = this.getNoraFrame();
+          const width = 160 * sw / sh;
+          ctx.drawImage(sprite, sx, sy, sw, sh, -width / 2, -80, width, 160);
         } else {
           ctx.font = 'bold 70px sans-serif';
           ctx.textAlign = 'center';
@@ -5171,6 +5016,7 @@ class AsaichiGame {
     if (!this.mikoshiRushes || this.mikoshiRushes.length === 0) return;
 
     this.mikoshiRushes.forEach(t => {
+      if (t.delay > 0) return;
       const mikoshiImg = this.images.mikoshi;
       const bw = t.w || 240;
       const bh = t.h || 134;

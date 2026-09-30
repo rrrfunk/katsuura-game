@@ -17,6 +17,7 @@ const gameContext = vm.createContext({
   clearTimeout() {},
   LEVEL_EVOLUTION: [null, { apply() {} }]
 });
+vm.runInContext(fs.readFileSync(path.join(root, 'js/balance.js'), 'utf8'), gameContext);
 vm.runInContext(`${fs.readFileSync(path.join(root, 'js/game.js'), 'utf8')}\nglobalThis.__AsaichiGame = AsaichiGame;`, gameContext);
 const AsaichiGame = gameContext.__AsaichiGame;
 
@@ -132,11 +133,12 @@ function makeGame(overrides = {}) {
 {
   const draws = [];
   const ctx = new Proxy({}, { get: (_, key) => key === 'drawImage' ? (...args) => draws.push(args) : () => {} });
-  const allyCat = { complete: true, naturalWidth: 384, naturalHeight: 356 };
+  const allyCat = { complete: true, naturalWidth: 1044, naturalHeight: 377 };
   const game = makeGame({ images: { allyCat, cat: {} } });
-  game.drawAllyCat(ctx, { x: 0, y: 0, scale: 1.35, dir: 'left', state: 'acting', animTimer: 0 });
+  game.drawAllyCat(ctx, { x: 0, y: 0, scale: 1.35, dir: 'left', animFrame: 2 });
   assert.equal(draws.length, 1);
   assert.equal(draws[0][0], allyCat);
+  assert.deepEqual(draws[0].slice(1, 5), [522, 80, 261, 220]);
 }
 
 // 同時回収した援護カットインを上書きせず、両方の効果を順番に起動する。
@@ -507,8 +509,92 @@ async function verifyPeaceBgmWaitsForAudioResume() {
   assert.equal(staleSound.ctx.state, 'running', 'next interaction resumes the shared audio context in battle mode');
 }
 
+
+// 早期回収は次の出現までを短縮し、遅い回収では短縮しない。
+{
+  const game = makeGame({ itemSpawnTimer: 3.6, assistCutinSeen: { noraneko: true }, spawnAllyCat() {} });
+  game.collectItem({ type: 'warabi', age: 2 });
+  assert.equal(game.itemSpawnTimer, 1.4);
+  game.itemSpawnTimer = 3.6;
+  game.collectItem({ type: 'warabi', age: 4 });
+  assert.equal(game.itemSpawnTimer, 3.6);
+}
+
+// ノラは複数コマでジグザグ移動。援護連打でも上限以内、終了後は残らない。
+{
+  const game = makeGame({ allyCats: [], player: { x: 660, y: 610 } });
+  for (let i = 0; i < 6; i++) game.spawnAllyCat();
+  assert.equal(game.allyCats.length, 3);
+  const nora = game.allyCats[0], x = nora.x;
+  const ys = [], frames = new Set();
+  for (let i = 0; i < 12; i++) { game.updateAllyCats(0.07); ys.push(nora.y); frames.add(nora.animFrame); }
+  assert.notEqual(nora.x, x);
+  assert.equal(frames.size, 4);
+  assert.ok(ys.some((v, i) => i > 0 && v > ys[i - 1]));
+  assert.ok(ys.some((v, i) => i > 0 && v < ys[i - 1]));
+  game.updateAllyCats(2.4);
+  assert.equal(game.allyCats.length, 0);
+}
+
+// ノラが重なり続けてもボスへ毎フレーム連続ダメージを与えない。
+{
+  const game = makeGame({ allyCats: [], player: { x: 660, y: 610 } });
+  game.spawnAllyCat();
+  const nora = game.allyCats[0];
+  game.updateAllyCats(0.01);
+  const boss = { x: nora.x, y: nora.y, hp: 3000 };
+  game.enemies = [boss];
+  let hits = 0;
+  game.damageEnemy = () => { hits++; return true; };
+  for (let i = 0; i < 10; i++) { boss.x = nora.x; boss.y = nora.y; game.updateAllyCats(0.01); }
+  assert.equal(hits, 1);
+  game.updateAllyCats(0.5);
+  boss.x = nora.x; boss.y = nora.y; game.updateAllyCats(0);
+  assert.equal(hits, 2);
+}
+
+// 波とラッシュが同時に来ても上限を守り、平和時間と最終ボス戦は雑魚を増やさない。
+{
+  const game = makeGame({ survivalTime: 90, enemySpawnTimer: 5, hordeTimer: 20, bossSpawned1: true });
+  game.spawnEnemy = () => game.enemies.push({});
+  for (let i = 0; i < 100; i++) game.updateEnemyWaves(1);
+  assert.equal(game.enemies.length, 52);
+  game.enemies = []; game.finalBossPhase = true; game.updateEnemyWaves(20);
+  assert.equal(game.enemies.length, 0);
+  game.finalBossPhase = false; game.survivalTime = 14; game.updateEnemyWaves(20);
+  assert.equal(game.enemies.length, 0);
+}
+
+// 会話は接近時1件だけ。居座っても連発せず、戦闘開始・新規プレイで解除される。
+{
+  vm.runInContext(`${fs.readFileSync(path.join(root, 'js/peace-scene.js'), 'utf8')}\nglobalThis.__PeaceScene = PeaceScene;`, gameContext);
+  const game = makeGame({ survivalTime: 1, firstYankeeEventDone: false, player: { x: 660, y: 530 } });
+  const scene = new gameContext.__PeaceScene(game);
+  scene.update(0.1); assert.equal(scene.bubble, null);
+  game.player.x = 310; game.player.y = 558;
+  scene.update(0.1); assert.equal(scene.bubble.stall.lines[0], 'お！ミケ！');
+  scene.update(3); assert.equal(scene.bubble, null);
+  scene.update(9); assert.equal(scene.bubble, null);
+  game.player.x = 660; scene.update(0.1);
+  game.player.x = 310; scene.update(0.1); assert.ok(scene.bubble);
+  game.firstYankeeEventDone = true; scene.update(0.1); assert.equal(scene.bubble, null);
+  game.firstYankeeEventDone = false; scene.reset(); scene.update(0.1); assert.ok(scene.bubble);
+  scene.reset(); assert.equal(scene.bubble, null);
+}
+
+// 遅延中の神輿はゲームが一時停止している間に動き出さない。
+{
+  const game = makeGame({ mobileUI: { isPaused: true },
+    mikoshiRushes: [{ delay: 0.14, x: 10, y: 600 }], enemies: [] });
+  game.update(1);
+  assert.equal(game.mikoshiRushes[0].delay, 0.14);
+  game.updateMikoshiRushes(0.07);
+  assert.equal(game.mikoshiRushes[0].x, 10);
+  assert.ok(game.mikoshiRushes[0].delay > 0);
+}
+
 verifyPeaceBgmWaitsForAudioResume().then(() => {
-  console.log('PDCA regression checks passed: 19 + peace BGM resume');
+  console.log('PDCA regression checks passed: 25 + peace BGM resume');
 }).catch((error) => {
   console.error(error);
   process.exitCode = 1;

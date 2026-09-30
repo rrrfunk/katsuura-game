@@ -65,6 +65,7 @@ class MobileUI {
     const normalScale = !viewport || Math.abs(viewport.scale - 1) < 0.01;
     const width = normalScale && viewport ? viewport.width : window.innerWidth;
     const height = normalScale && viewport ? viewport.height : window.innerHeight;
+    this.viewportWidth = width;
     document.documentElement.style.setProperty('--play-width', `${width}px`);
     document.documentElement.style.setProperty('--play-height', `${height}px`);
     const viewH = g.isMobilePhoneActive && !g.mobilePortrait ? Math.round(880 * height / width) : 495;
