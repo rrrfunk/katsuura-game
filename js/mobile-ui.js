@@ -3,12 +3,13 @@ class MobileUI {
   constructor(game) {
     this.game = game;
     this.elements = {};
-    for (const id of ['mobile-hud', 'mobile-notice', 'mobile-hp', 'mobile-level', 'mobile-hp-fill',
+    for (const id of ['skip-peace', 'mobile-hud', 'mobile-notice', 'mobile-hp', 'mobile-level', 'mobile-hp-fill',
       'mobile-exp-fill', 'mobile-timer', 'mobile-timer-label', 'mobile-controller-zone', 'pause-menu',
       'pause-stats', 'mobile-pause', 'mobile-resume', 'mobile-sound', 'mobile-fullscreen']) {
       this.elements[id] = document.getElementById(id);
     }
     this.menu = this.elements['pause-menu'];
+    this.elements['skip-peace'].addEventListener('click', () => game.startBattle());
     this.elements['mobile-pause'].addEventListener('click', () => this.openMenu());
     this.elements['mobile-resume'].addEventListener('click', () => this.closeMenu());
     this.menu.addEventListener('cancel', e => { e.preventDefault(); this.closeMenu(); });
@@ -86,6 +87,7 @@ class MobileUI {
     const visible = g.state === 'PLAYING' && !g.mobilePortrait && !g.orientationResumeRequired &&
       !this.isPaused && !tutorialOpen && !cinematic;
     document.body.classList.toggle('play-controls-visible', visible);
+    this.elements['skip-peace'].hidden = !visible || g.firstYankeeEventDone || g.survivalTime >= 15 || g.isVictoryClear;
     this.elements['mobile-hud'].hidden = !g.isMobilePhoneActive || !visible;
     this.elements['mobile-controller-zone'].hidden = !visible;
     const banner = g.levelUpBanner;

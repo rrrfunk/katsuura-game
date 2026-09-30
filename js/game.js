@@ -1157,6 +1157,21 @@ class AsaichiGame {
     };
   }
 
+  // 自然経過とスキップで同じ戦闘開始処理を使い、BGM・初回敵を二重起動しない。
+  startBattle() {
+    if (this.isGameInputBlocked() || this.firstYankeeEventDone || this.isVictoryClear ||
+        this.eventState !== 'NONE' || this.assistCutin) return false;
+    this.survivalTime = Math.max(15, this.survivalTime);
+    this.clearInputState();
+    this.peaceScene?.reset();
+    this.levelUpBanner = null;
+    const spawnSide = this.player.x > 600 ? -25 : this.worldW + 25;
+    this.triggerYankeeEvent(this.spawnEnemy('tsuppari', spawnSide, 600));
+    this.updateUI();
+    this.mobileUI?.syncVisibility();
+    return true;
+  }
+
   // 2. 初回ヤンキー遭遇（★平和モードから戦闘モードへの転換！スト6風大迫力カットインイベント発動！）
   triggerYankeeEvent(yankeeEnemy) {
     if (this.firstYankeeEventDone) return;
@@ -1364,9 +1379,7 @@ class AsaichiGame {
 
     // 平和時間（15.0秒）を過ぎたら、最初のヤンキーが襲来！（格ゲーカットイン発動！）
     if (this.survivalTime >= 15.0 && !this.firstYankeeEventDone) {
-      const spawnSide = this.player.x > 600 ? -25 : this.worldW + 25;
-      const firstYankee = this.spawnEnemy('tsuppari', spawnSide, 600);
-      this.triggerYankeeEvent(firstYankee);
+      this.startBattle();
     }
 
 

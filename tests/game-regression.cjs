@@ -593,8 +593,36 @@ async function verifyPeaceBgmWaitsForAudioResume() {
   assert.ok(game.mikoshiRushes[0].delay > 0);
 }
 
+// 平和スキップは入力・会話を解除し、敵登場とBGM切替を一度だけ実行する。
+{
+  let stopped = 0, started = 0, cleared = 0;
+  const game = makeGame({ survivalTime: 3, firstYankeeEventDone: false, eventState: 'NONE',
+    peaceScene: { reset() { cleared++; } }, updateUI() {},
+    sound: { stopPeaceBGM() { stopped++; }, playYankeeEncounter() {}, startBattleBGM() { started++; } },
+    spawnEnemy() { const e = {}; this.enemies.push(e); return e; },
+    joystickVector: { x: 1, y: 0 }, levelUpBanner: { title: '平和' } });
+  assert.equal(game.startBattle(), true);
+  assert.equal(game.survivalTime, 15);
+  assert.equal(game.eventState, 'YANKEE');
+  assert.equal(game.firstYankeeEventDone, true);
+  assert.equal(game.levelUpBanner, null);
+  assert.equal(game.joystickVector.x, 0);
+  assert.equal(game.startBattle(), false);
+  assert.deepEqual([game.enemies.length, stopped, started, cleared], [1, 1, 1, 1]);
+}
+
+// 一時停止中のスキップ要求では時刻・敵・イベントを変更しない。
+{
+  const game = makeGame({ survivalTime: 4, firstYankeeEventDone: false, eventState: 'NONE',
+    mobileUI: { isPaused: true } });
+  assert.equal(game.startBattle(), false);
+  assert.equal(game.survivalTime, 4);
+  assert.equal(game.eventState, 'NONE');
+  assert.equal(game.enemies.length, 0);
+}
+
 verifyPeaceBgmWaitsForAudioResume().then(() => {
-  console.log('PDCA regression checks passed: 25 + peace BGM resume');
+  console.log('PDCA regression checks passed: 27 + peace BGM resume');
 }).catch((error) => {
   console.error(error);
   process.exitCode = 1;
