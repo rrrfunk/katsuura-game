@@ -719,44 +719,39 @@ class AsaichiGame {
     // ========================================================
     // 画面内に重ねる操作レイヤー
     // ========================================================
-    const ctrlZone = document.getElementById('mobile-controller-zone');
     const joyZone = document.getElementById('joystick-zone');
     const joyBase = document.getElementById('joystick-base');
     const joyKnob = document.getElementById('joystick-knob');
 
     this.joyTouchId = null;
-    let joyBaseCenter = { x: 0, y: 0 };
+    let joyOrigin = { x: 0, y: 0 };
+    let inputRadius = 32;
+    let visualRadius = 16;
+    const deadZone = 5;
     this.isMouseJoy = false;
-    const getMaxJoyRadius = () => {
-      const baseSize = joyBase?.getBoundingClientRect().width || 88;
-      const knobSize = joyKnob?.getBoundingClientRect().width || 42;
-      return Math.max(16, (baseSize - knobSize) / 2 - 3);
-    };
-
-    const updateJoyBaseCenter = () => {
-      if (joyBase) {
-        const rect = joyBase.getBoundingClientRect();
-        joyBaseCenter = {
-          x: rect.left + rect.width / 2,
-          y: rect.top + rect.height / 2
-        };
-      }
-    };
 
     const handleJoyStart = (clientX, clientY, identifier) => {
-      if (this.isGameInputBlocked()) return;
+      if (this.isGameInputBlocked() || this.assistCutin || this.eventState !== 'NONE' || this.joyTouchId !== null) return;
+      this.clearInputState();
       this.joyTouchId = identifier;
-      updateJoyBaseCenter();
+      this.isMouseJoy = identifier === 'mouse';
+      // 触れた位置を中立にする。寸法は押下時だけ測り、指の移動ごとの再測定を避ける。
+      joyOrigin = { x: clientX, y: clientY };
+      const baseSize = joyBase?.getBoundingClientRect().width || 96;
+      const knobSize = joyKnob?.getBoundingClientRect().width || 46;
+      inputRadius = Math.max(32, baseSize * 0.36);
+      visualRadius = Math.max(16, (baseSize - knobSize) / 2 - 3);
+      joyZone?.classList.add('is-dragging');
       handleJoyMove(clientX, clientY);
     };
 
     const handleJoyMove = (clientX, clientY) => {
-      if (this.isGameInputBlocked()) {
+      if (this.isGameInputBlocked() || this.assistCutin || this.eventState !== 'NONE') {
         handleJoyEnd();
         return;
       }
-      const dx = clientX - joyBaseCenter.x;
-      const dy = clientY - joyBaseCenter.y;
+      const dx = clientX - joyOrigin.x;
+      const dy = clientY - joyOrigin.y;
       const dist = Math.hypot(dx, dy);
 
       if (dist === 0) {
@@ -766,39 +761,45 @@ class AsaichiGame {
         return;
       }
 
-      const maxJoyRadius = getMaxJoyRadius();
-      const clampedDist = Math.min(dist, maxJoyRadius);
+      const clampedDist = Math.min(dist, inputRadius);
       const nx = dx / dist;
       const ny = dy / dist;
 
-      // 移動入力ベクトル（0.0 〜 1.0）
-      this.joystickVector.x = nx * (clampedDist / maxJoyRadius);
-      this.joystickVector.y = ny * (clampedDist / maxJoyRadius);
+      // 指が遠くへ外れても、方向転換に必要な引き戻し距離を増やさない。
+      if (dist > inputRadius) {
+        joyOrigin.x += nx * (dist - inputRadius);
+        joyOrigin.y += ny * (dist - inputRadius);
+      }
+      const amount = Math.max(0, (clampedDist - deadZone) / (inputRadius - deadZone));
+      const strength = Math.pow(amount, 1.15);
+      this.joystickVector.x = nx * strength;
+      this.joystickVector.y = ny * strength;
 
       if (joyKnob) {
-        joyKnob.style.transform = `translate(${nx * clampedDist}px, ${ny * clampedDist}px)`;
+        const offset = clampedDist / inputRadius * visualRadius;
+        joyKnob.style.transform = `translate(${nx * offset}px, ${ny * offset}px)`;
       }
     };
 
     const handleJoyEnd = () => {
       this.joyTouchId = null;
+      this.isMouseJoy = false;
       this.joystickVector.x = 0;
       this.joystickVector.y = 0;
+      this.mouseInput.active = false;
+      this.mouseInput.isDown = false;
+      this.directTouchId = null;
+      joyZone?.classList.remove('is-dragging');
       if (joyKnob) {
         joyKnob.style.transform = 'translate(0px, 0px)';
       }
     };
 
     this.cancelInputPointers = () => {
-      this.directTouchId = null;
-      this.joyTouchId = null;
-      this.isMouseJoy = false;
-      this.joystickVector.x = 0;
-      this.joystickVector.y = 0;
-      if (joyKnob) joyKnob.style.transform = 'translate(0px, 0px)';
+      handleJoyEnd();
     };
 
-    const targetTouchArea = ctrlZone || joyZone;
+    const targetTouchArea = joyZone;
     if (targetTouchArea) {
       targetTouchArea.addEventListener('touchstart', (e) => {
         e.preventDefault();
@@ -814,6 +815,7 @@ class AsaichiGame {
         for (let i = 0; i < e.changedTouches.length; i++) {
           const touch = e.changedTouches[i];
           if (touch.identifier === this.joyTouchId) {
+            e.preventDefault();
             handleJoyMove(touch.clientX, touch.clientY);
             break;
           }
@@ -835,7 +837,7 @@ class AsaichiGame {
       // PCマウスでもスティックをドラッグ操作可能（テスト・デバッグ用）
       targetTouchArea.addEventListener('mousedown', (e) => {
         if (e.button === 0) {
-          this.isMouseJoy = true;
+          e.preventDefault();
           handleJoyStart(e.clientX, e.clientY, 'mouse');
         }
       });
@@ -1364,15 +1366,16 @@ class AsaichiGame {
       if (this.mouseInput) this.mouseInput.active = false;
     }
 
-    // 2. スマホ用：右下バーチャルスティック（グリグリ操作）
+    // 2. スティックの中心は中立。操作中は画面ドラッグの入力を混ぜない。
     const joyMag = Math.hypot(this.joystickVector.x, this.joystickVector.y);
-    if (joyMag > 0.08) {
-      moveX += this.joystickVector.x;
-      moveY += this.joystickVector.y;
+    const usingJoystick = this.joyTouchId != null;
+    if (!hasKeyboardInput && joyMag > 0) {
+      moveX = this.joystickVector.x;
+      moveY = this.joystickVector.y;
     }
 
     // 3. PC用：マウス操作（左クリック・ドラッグ中のみ滑らかに追従！）
-    if (!hasKeyboardInput && joyMag <= 0.08 && this.mouseInput && this.mouseInput.isDown) {
+    if (!hasKeyboardInput && !usingJoystick && joyMag === 0 && this.mouseInput && this.mouseInput.isDown) {
       const mouseWorldX = this.mouseInput.x + this.camera.x;
       const mouseWorldY = this.mouseInput.y + this.camera.y;
       const mdx = mouseWorldX - p.x;
@@ -1388,7 +1391,7 @@ class AsaichiGame {
     }
 
     const inputLen = Math.hypot(moveX, moveY);
-    const isMoving = inputLen > 0.05;
+    const isMoving = inputLen > (usingJoystick ? 0.001 : 0.05);
     p.isMoving = isMoving;
 
     // 韋駄天ブーツ＆コーヒーバフ適用（ボタンなしでも常に爽快に走れる快速スピード）

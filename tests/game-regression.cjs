@@ -701,8 +701,114 @@ async function verifySharedBgmTransport() {
   assert.equal(game.eventState, 'NONE');
 }
 
+// 実際のスティックイベントを呼び出し、プレイヤーの移動まで確認する。
+function makeJoystickGame(size = 104) {
+  const handlers = new Map();
+  const nodes = {};
+  const makeTarget = (id, width) => {
+    const classes = new Set();
+    return {
+      style: {}, getBoundingClientRect: () => ({ width }),
+      classList: { add: n => classes.add(n), remove: n => classes.delete(n), contains: n => classes.has(n) },
+      addEventListener(type, listener) { handlers.set(`${id}:${type}`, listener); }
+    };
+  };
+  nodes['joystick-zone'] = makeTarget('zone', size);
+  nodes['joystick-base'] = makeTarget('base', size);
+  nodes['joystick-knob'] = makeTarget('knob', 46);
+  const game = makeGame({ eventState: 'NONE', assistCutin: null, skills: { boots: { level: 0 } },
+    player: { x: 660, y: 500, dir: 'down', facing: 1, animTimer: 0 },
+    moveWithCollision(p, x, y) { p.x += x; p.y += y; } });
+  const previousGet = gameContext.document.getElementById;
+  const previousListen = gameContext.window.addEventListener;
+  try {
+    gameContext.document.getElementById = id => nodes[id] || null;
+    gameContext.window.addEventListener = (type, listener) => handlers.set(`window:${type}`, listener);
+    game.initJoystickEvents();
+  } finally {
+    gameContext.document.getElementById = previousGet;
+    gameContext.window.addEventListener = previousListen;
+  }
+  const touch = (target, type, x, y, identifier = 1) => handlers.get(`${target}:${type}`)({
+    changedTouches: [{ clientX: x, clientY: y, identifier }], preventDefault() {}
+  });
+  return { game, nodes, start: (x, y, id) => touch('zone', 'touchstart', x, y, id),
+    move: (x, y, id) => touch('window', 'touchmove', x, y, id),
+    end: (id, cancelled = false) => touch('window', cancelled ? 'touchcancel' : 'touchend', 0, 0, id) };
+}
+
+// 端を触っただけでは走らず、指の揺れは無視、小さな倒し量は歩き、大きな倒し量は走る。
+{
+  for (const size of [96, 104]) {
+    const { game, nodes, start, move, end } = makeJoystickGame(size);
+    start(88, 92);
+    game.updatePlayer(1 / 60);
+    assert.deepEqual([game.player.x, game.player.y], [660, 500]);
+    move(92, 92);
+    assert.equal(game.joystickVector.x, 0, 'thumb jitter does not move the player');
+    move(98, 92);
+    assert.ok(game.joystickVector.x > 0 && game.joystickVector.x < 0.2, 'small drags allow precise movement');
+    const before = game.player.x;
+    game.updatePlayer(1 / 60);
+    assert.ok(game.player.x > before && game.player.x - before < 1.12);
+    move(288, 92);
+    assert.equal(game.joystickVector.x, 1);
+    end();
+    const stopped = game.player.x;
+    game.updatePlayer(1 / 60);
+    assert.equal(game.player.x, stopped, 'release stops on the next frame without inertia');
+    assert.equal(nodes['joystick-knob'].style.transform, 'translate(0px, 0px)');
+    assert.equal(nodes['joystick-zone'].classList.contains('is-dragging'), false);
+  }
+}
+
+// ゾーン外まで倒しても戻し量が増えず、別の指や画面ドラッグが中立入力へ混ざらない。
+{
+  const { game, start, move, end } = makeJoystickGame();
+  start(0, 0);
+  move(300, 0);
+  assert.equal(game.joystickVector.x, 1);
+  move(0, 300, 2);
+  end(2);
+  assert.equal(game.joystickVector.x, 1, 'unrelated fingers do not change or release the stick');
+  move(300 - 104 * 0.36, 0);
+  assert.equal(game.joystickVector.x, 0, 'returning only the stick radius reaches neutral');
+  game.mouseInput = { isDown: true, active: true, x: 1000, y: 500 };
+  const stopped = game.player.x;
+  game.updatePlayer(1 / 60);
+  assert.equal(game.player.x, stopped, 'neutral stick suppresses competing canvas movement');
+  move(300 - 104 * 0.36 - 12, 0);
+  assert.ok(game.joystickVector.x < 0, 'a short further return reverses direction');
+  end(1, true);
+  assert.equal(game.joyTouchId, null);
+  assert.equal(game.mouseInput.isDown, false);
+  assert.equal(game.joystickVector.x, 0);
+  start(40, 40);
+  move(90, 40);
+  game.clearInputState();
+  move(110, 40);
+  assert.equal(game.joystickVector.x, 0, 'cancelled input cannot resume from a stale move');
+}
+
+// スティックの斜め移動も30/60/120Hzで同じ距離。PCのキー入力も独立して使える。
+{
+  const distances = [30, 60, 120].map(fps => {
+    const { game, start, move } = makeJoystickGame();
+    start(40, 40); move(140, 140);
+    for (let i = 0; i < fps; i++) game.updatePlayer(1 / fps);
+    assert.ok(Math.abs((game.player.x - 660) - (game.player.y - 500)) < 0.001);
+    return Math.hypot(game.player.x - 660, game.player.y - 500);
+  });
+  assert.ok(distances.every(d => Math.abs(d - 336) < 0.001), `stick travel varies: ${distances}`);
+  const { game } = makeJoystickGame();
+  game.keys.KeyW = true;
+  game.updatePlayer(1 / 60);
+  assert.equal(game.player.x, 660);
+  assert.equal(game.player.y, 494.4);
+}
+
 verifySharedBgmTransport().then(() => {
-  console.log('PDCA regression checks passed: 34 + shared BGM transport/resume');
+  console.log('PDCA regression checks passed: 37 + shared BGM transport/resume');
 }).catch((error) => {
   console.error(error);
   process.exitCode = 1;

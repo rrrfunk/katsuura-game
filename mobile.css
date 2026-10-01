@@ -58,6 +58,7 @@ body.mobile-landscape #joystick-zone {
   position: absolute; width: 104px; height: 104px; margin: 0; right: calc(env(safe-area-inset-right, 0px) + 20px);
   bottom: calc(env(safe-area-inset-bottom, 0px) + 16px); pointer-events: auto; touch-action: none; opacity: .72;
 }
+body.mobile-landscape #joystick-zone.is-dragging { opacity: 1; }
 body.mobile-landscape #joystick-base { width: 100%; height: 100%; background: #13233899; border: 2px solid #fbbf24bb; box-shadow: none; }
 body.mobile-landscape #joystick-knob { width: 46px; height: 46px; border-width: 2px; box-shadow: none; }
 body.mobile-landscape .knob-icon { font-size: 22px; }

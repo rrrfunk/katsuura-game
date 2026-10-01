@@ -654,12 +654,11 @@ body {
   -webkit-user-select: none;
   pointer-events: auto;
   opacity: 0.85;
-  transition: opacity 0.2s ease, transform 0.1s ease;
+  transition: opacity 0.2s ease;
 }
 
-#joystick-zone:active {
+#joystick-zone:active, #joystick-zone.is-dragging {
   opacity: 1;
-  transform: scale(1.03);
 }
 
 #joystick-base {
@@ -715,7 +714,7 @@ body {
   align-items: center;
   pointer-events: none;
   transform: translate(0px, 0px);
-  transition: transform 0.04s ease-out;
+  transition: none;
 }
 
 .knob-icon {
