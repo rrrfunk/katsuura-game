@@ -426,7 +426,7 @@ body {
 }
 
 #title-overlay {
-  background: url('assets/title_bg.webp?v=20260929_webp_v1') center center / cover no-repeat !important;
+  background: #080c10 url('assets/title_bg.webp?v=20260929_webp_lightweight_v1') center center / cover no-repeat;
   backdrop-filter: none;
   position: absolute;
   top: 0;
@@ -437,6 +437,8 @@ body {
   z-index: 100;
   cursor: pointer;
 }
+
+.title-art { display: none; }
 
 .sfc-start-hitbox {
   position: absolute;

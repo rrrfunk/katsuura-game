@@ -1112,8 +1112,8 @@ class AsaichiGame {
     this.eventLockoutTimer = 0;
 
     if (prevState === 'YANKEE') {
-      // 戦闘BGMスタート！
-      this.sound.startBattleBGM();
+      // 登場時に始めた曲を続ける。演出終了で先頭へ戻さない。
+      this.sound.resumeCurrentBGM();
       this.itemSpawnTimer = 2.0; // 2秒後に最初のアイスコーヒー確定出現
       this.screenShake = 0.45;
       this.showLevelUpBanner('⚠️ 勝浦ヤンキー集団が朝市に乱入！', 'アイテムを急いで拾って、助っ人の援護をつなごう！');
@@ -2983,6 +2983,9 @@ class AsaichiGame {
     const ctx = this.ctx;
     this.mobileUI?.syncVisibility();
     ctx.clearRect(0, 0, this.viewW, this.viewH);
+    // カットインの背後で見えない戦場を毎フレーム描かない。
+    if (this.eventState !== 'NONE') { this.renderCinematic(ctx, this.renderEventCutin); return; }
+    if (this.assistCutin) { this.renderCinematic(ctx, this.renderAssistCutin); return; }
 
     ctx.save();
     // 画面揺れ（スクリーンシェイク）
@@ -3029,20 +3032,25 @@ class AsaichiGame {
     // H. レベルアップ＆告知バナー（スタイリッシュなネオンテロップ）
     this.renderLevelUpBanner(ctx);
 
-    // I. 初回エンカウントイベント演出カットイン
-    if (this.eventState !== 'NONE') this.renderCinematic(ctx, this.renderEventCutin);
-
-    // J. 格ゲー必殺技風・お助けキャラカットイン演出
-    if (this.assistCutin) {
-      this.renderCinematic(ctx, this.renderAssistCutin);
-    }
   }
 
-  // カットインは共通座標で描画し、横長画面でも文字と絵を切らない。
+  // 絵・文字は全体を収め、余白だけ同じ素材の背景で満たす。
   renderCinematic(ctx, draw) {
     const scale = Math.min(this.viewW / 880, this.viewH / 495);
+    let backdrop = this.eventState === 'YANKEE' ? this.images.splashYankee :
+      this.eventState === 'KYON' ? this.images.splashKyon : this.images.mapPeace;
+    if (this.assistCutin) {
+      backdrop = this.images[{ tandem:'cutinTandem', mikoshi:'cutinMikoshi', noraneko:'cutinNoraneko' }[this.assistCutin.type]];
+    }
     ctx.save();
-    ctx.fillStyle = '#080c10';
+    if (backdrop?.complete && backdrop.naturalWidth > 0) {
+      const cover = Math.max(this.viewW / backdrop.naturalWidth, this.viewH / backdrop.naturalHeight);
+      const width = backdrop.naturalWidth * cover, height = backdrop.naturalHeight * cover;
+      ctx.drawImage(backdrop, (this.viewW - width) / 2, (this.viewH - height) / 2, width, height);
+      ctx.fillStyle = 'rgba(8,12,16,.45)';
+    } else {
+      ctx.fillStyle = '#38224c';
+    }
     ctx.fillRect(0, 0, this.viewW, this.viewH);
     ctx.translate((this.viewW - 880 * scale) / 2, (this.viewH - 495 * scale) / 2);
     ctx.scale(scale, scale);

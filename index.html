@@ -11,8 +11,8 @@
   <title>ニャンと多忙な勝浦朝市！〜おつかい猫のヤンキー大乱闘〜 【SFC超美麗版】</title>
   <link rel="manifest" href="manifest.json">
   <link rel="apple-touch-icon" href="assets/apple-touch-icon.png">
-  <link rel="stylesheet" href="style.css?v=20261001_ui_v9">
-  <link rel="stylesheet" href="mobile.css?v=20261001_ui_v9">
+  <link rel="stylesheet" href="style.css?v=20261001_media_v11">
+  <link rel="stylesheet" href="mobile.css?v=20261001_media_v11">
 </head>
 <body>
   <div id="game-container">
@@ -78,7 +78,8 @@
       </div>
 
       <!-- 1. タイトル画面（ChatGPT生成の超美麗1枚絵全面＋STARTボタン連動ヒットボックス） -->
-      <div id="title-overlay" class="overlay title-screen" style="background: url('assets/title_bg.webp?v=20260929_webp_lightweight_v1') center center / cover no-repeat !important;">
+      <div id="title-overlay" class="overlay title-screen">
+        <img class="title-art" src="assets/title_bg.webp?v=20260929_webp_lightweight_v1" alt="ニャンと多忙な勝浦朝市！ おつかい猫のヤンキー大乱闘" draggable="false">
         <button id="btn-quick-start" class="sfc-start-hitbox" title="START 出撃！" aria-label="出撃してゲームを始める"><span class="mobile-start-label">出撃する ▶</span></button>
       </div>
 
@@ -225,11 +226,11 @@
 
 
   <!-- 分割スクリプト群（サウンド、定数、ゲーム本体） -->
-  <script src="js/sound.js?v=20261001_audio_v10"></script>
+  <script src="js/sound.js?v=20261001_media_v11"></script>
   <script src="js/balance.js?v=20260930_rush_v7"></script>
   <script src="js/constants.js?v=20260930_mobile_v6"></script>
   <script src="js/peace-scene.js?v=20260930_rush_v7"></script>
-  <script src="js/mobile-ui.js?v=20261001_ui_v9"></script>
-  <script src="js/game.js?v=20261001_audio_v10"></script>
+  <script src="js/mobile-ui.js?v=20261001_media_v11"></script>
+  <script src="js/game.js?v=20261001_media_v11"></script>
 </body>
 </html>

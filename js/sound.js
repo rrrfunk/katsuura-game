@@ -16,22 +16,22 @@ class SoundSystem {
     this.currentBgmType = 'NONE'; // 'NONE' | 'PEACE' | 'BATTLE'
     this.resumeBgmType = 'PEACE';
 
-    // 平和BGMは音声スレッドでループ。1音ごとのJSタイマーを使わない。
-    this.peaceBgmSource = null;
-    this.peaceBgmBuffer = null;
-    this.peaceBgmPlaying = false;
-    this.peaceBgmRequested = false;
-    this.peaceBgmGeneration = 0;
-
-    // ユーザー提供の本格戦闘BGM（高品質・軽量AAC最適化版：assets/bgm.m4a）
-    this.bgmAudio = new Audio('assets/bgm.m4a');
+    // BGMは1つのHTMLAudioで継続。出撃時の許可を曲の切替にも引き継ぐ。
+    this.bgmAudio = new Audio('assets/bgm_peace.m4a');
     this.bgmAudio.loop = true;
-    this.bgmAudio.volume = 0.32; // 主軸BGMとしてしっかり心地よく聴こえる音量に統一！
-
-    // ★ユーザー提供のクリア・エンディング神曲BGM（高品質・軽量AAC最適化版：assets/bgm_clear.m4a）
-    this.clearBgmAudio = new Audio('assets/bgm_clear.m4a');
-    this.clearBgmAudio.loop = true;
-    this.clearBgmAudio.volume = 0.35; // 温かくクリアの達成感を包み込む音量！
+    this.bgmAudio.preload = 'auto';
+    this.bgmAudio.volume = 1; // 平和曲は元の控えめな音量をファイル自体に含める。
+    this.clearBgmAudio = this.bgmAudio; // 既存参照との互換。再生実体は同じ。
+    this.bgmTrack = 'PEACE';
+    this.bgmGeneration = 0;
+    this.peaceBgmPlaying = false;
+    this.bgmAudio.addEventListener?.('pause', () => {
+      this.bgmPlaying = false;
+      this.peaceBgmPlaying = false;
+    });
+    this.bgmAudio.addEventListener?.('canplay', () => {
+      if (this.soundEnabled && this.currentBgmType !== 'NONE' && this.bgmAudio.paused) this.playBgmAudio();
+    });
 
     // ★ユーザー提供の高品質リアル効果音オーディオプール（バランス調整済み）
     this.audioPool = {
@@ -70,12 +70,6 @@ class SoundSystem {
     if ((!this.ctx || this.ctx.state === 'closed') && AudioCtx) {
       try {
         this.ctx = new AudioCtx();
-        const context = this.ctx;
-        context.addEventListener?.('statechange', () => {
-          // OSによる中断から音声が戻った際、曲の状態だけ残る無音を防ぐ。
-          if (this.ctx === context && context.state === 'running' &&
-              this.soundEnabled && this.currentBgmType === 'PEACE') this.ensurePeaceBgmSource();
-        });
         this.createNoiseBuffer();
         this.loadCustomAudioBuffers();
       } catch (error) {
@@ -741,210 +735,87 @@ class SoundSystem {
     this.playMeowRoar();
   }
 
-  // 同じ朝市メロディを初回だけPCMへ合成し、以降は音声側で途切れずループする。
-  createPeaceBgmBuffer() {
-    const rate = this.ctx.sampleRate;
-    if (this.peaceBgmBuffer?.sampleRate === rate) return this.peaceBgmBuffer;
-    const melody = [
-      [440, .22], [493.88, .22], [554.37, .22], [659.25, .44],
-      [554.37, .22], [493.88, .22], [440, .44], [0, .22],
-      [659.25, .22], [739.99, .22], [880, .44], [739.99, .22],
-      [659.25, .22], [554.37, .44], [440, .44], [0, .22]
-    ];
-    const lengths = melody.map(([, duration]) => Math.round(duration * rate));
-    const buffer = this.ctx.createBuffer(1, lengths.reduce((a, b) => a + b, 0), rate);
-    const data = buffer.getChannelData(0);
-    let offset = 0;
-    melody.forEach(([frequency, duration], index) => {
-      const length = lengths[index];
-      if (frequency > 0) {
-        const leadLength = Math.round(duration * .85 * rate);
-        const bassLength = Math.round(duration * .9 * rate);
-        const leadDecay = Math.pow(.0001 / .035, 1 / leadLength);
-        const bassDecay = Math.pow(.0001 / .040, 1 / bassLength);
-        let leadGain = .035, bassGain = .040;
-        for (let i = 0; i < length; i++) {
-          const phase = i * frequency / rate;
-          // 高域の倍音を抑えた矩形波と三角波。先頭3msは立ち上げてクリックを防ぐ。
-          let square = 0;
-          for (let harmonic = 1; harmonic <= 5; harmonic += 2) {
-            if (frequency * harmonic < rate / 2) square += Math.sin(phase * Math.PI * 2 * harmonic) / harmonic;
-          }
-          const bassPhase = phase / 2;
-          const triangle = 1 - 4 * Math.abs((bassPhase % 1) - .5);
-          const attack = Math.min(1, i / (rate * .003));
-          data[offset + i] = attack * ((i < leadLength ? square * (4 / Math.PI) * leadGain : 0) +
-            (i < bassLength ? triangle * bassGain : 0));
-          leadGain *= leadDecay;
-          bassGain *= bassDecay;
-        }
+  // 同じプレイヤーで曲だけ切替。同じ曲への再要求では再生位置を戻さない。
+  startTrackBGM(type) {
+    const tracks = {
+      PEACE: { src:'assets/bgm_peace.m4a', volume:1 },
+      BATTLE: { src:'assets/bgm.m4a', volume:.32 },
+      CLEAR: { src:'assets/bgm_clear.m4a', volume:.35 }
+    };
+    const track = tracks[type];
+    if (!track) return Promise.resolve(false);
+    if (this.currentBgmType !== type) {
+      this.bgmGeneration++;
+      this.bgmAudio.pause();
+      this.bgmPlaying = false;
+      this.peaceBgmPlaying = false;
+      if (this.bgmTrack !== type) {
+        this.bgmAudio.src = track.src;
+        this.bgmTrack = type;
+        this.bgmAudio.load?.();
       }
-      offset += length;
-    });
-    this.peaceBgmBuffer = buffer;
-    return buffer;
+      this.bgmAudio.currentTime = 0;
+      this.bgmAudio.volume = track.volume;
+    }
+    this.currentBgmType = type;
+    if (!this.soundEnabled) return Promise.resolve(false);
+    this.init(); // 効果音用のコンテキスト。BGMはその再開を待たない。
+    return this.playBgmAudio();
   }
 
-  ensurePeaceBgmSource() {
-    if (!this.soundEnabled || !this.peaceBgmRequested || this.currentBgmType !== 'PEACE' || this.ctx?.state !== 'running') return;
-    if (this.peaceBgmSource?.context === this.ctx) return;
-    this.clearPeaceBgmSource();
+  playBgmAudio() {
+    if (!this.soundEnabled || this.currentBgmType === 'NONE') return Promise.resolve(false);
+    const generation = this.bgmGeneration;
+    const type = this.currentBgmType;
+    const markPlaying = () => {
+      if (this.bgmGeneration !== generation || this.currentBgmType !== type || !this.soundEnabled) return false;
+      this.bgmPlaying = !this.bgmAudio.paused;
+      this.peaceBgmPlaying = type === 'PEACE' && this.bgmPlaying;
+      return this.bgmPlaying;
+    };
+    if (!this.bgmAudio.paused) return Promise.resolve(markPlaying());
     try {
-      const source = this.ctx.createBufferSource();
-      source.buffer = this.createPeaceBgmBuffer();
-      source.loop = true;
-      source.connect(this.ctx.destination);
-      source.onended = () => {
-        if (this.peaceBgmSource !== source) return;
-        this.peaceBgmSource = null;
-        this.peaceBgmPlaying = false;
-        source.disconnect();
-      };
-      this.peaceBgmSource = source;
-      source.start(0);
-      this.peaceBgmPlaying = true;
-    } catch (error) {
-      this.clearPeaceBgmSource();
-      console.warn('Peace BGM could not start', error);
-    }
+      // ユーザー操作の同期処理内でplayを呼ぶ。awaitで再生許可を失わない。
+      return Promise.resolve(this.bgmAudio.play()).then(markPlaying).catch(error => {
+        if (this.bgmGeneration === generation) {
+          this.bgmPlaying = false; this.peaceBgmPlaying = false;
+          console.warn('BGM playback awaits recovery', error);
+        }
+        return false;
+      });
+    } catch (error) { return Promise.resolve(false); }
   }
 
-  startPeaceBGM() {
-    this.stopBattleBGM();
-    this.stopClearBGM();
-    this.stopPeaceBGM();
-    this.currentBgmType = 'PEACE';
-    this.peaceBgmRequested = true;
-    if (!this.soundEnabled) return;
-    const generation = this.peaceBgmGeneration;
-    Promise.resolve(this.init()).then((isRunning) => {
-      if (!isRunning || this.peaceBgmGeneration !== generation) return;
-      this.ensurePeaceBgmSource();
-    }).catch(error => console.warn('Peace BGM could not start', error));
-  }
+  startPeaceBGM() { return this.startTrackBGM('PEACE'); }
+  startBattleBGM() { return this.startTrackBGM('BATTLE'); }
+  startClearBGM() { return this.startTrackBGM('CLEAR'); }
 
-  clearPeaceBgmSource() {
-    const source = this.peaceBgmSource;
-    this.peaceBgmSource = null;
+  stopTrackBGM(type) {
+    if (this.currentBgmType !== type) return;
+    this.bgmGeneration++;
+    this.bgmAudio.pause();
+    this.bgmPlaying = false;
     this.peaceBgmPlaying = false;
-    if (source) {
-      source.onended = null;
-      try { source.stop(); } catch (error) {}
-      try { source.disconnect(); } catch (error) {}
-    }
   }
+  stopPeaceBGM() { this.stopTrackBGM('PEACE'); }
+  stopBattleBGM() { this.stopTrackBGM('BATTLE'); }
+  stopClearBGM() { this.stopTrackBGM('CLEAR'); }
 
-  stopPeaceBGM() {
-    this.peaceBgmRequested = false;
-    this.peaceBgmGeneration++;
-    this.clearPeaceBgmSource();
-  }
-
-  // Safariでタブや音声デバイスから戻った後、次の操作で現在のBGMを復帰する。
+  // 音声コンテキストが中断されても、BGMは同じ再生位置から独立して復帰する。
   resumeCurrentBGM() {
     if (!this.soundEnabled || this.currentBgmType === 'NONE') return Promise.resolve(false);
-    const type = this.currentBgmType;
-
-    const generation = this.peaceBgmGeneration;
-
-    // コンテキストとHTMLAudioを同じユーザー操作中に再開し、iOSの再生許可を逃さない。
-    const contextRecovery = this.init();
-    const audio = type === 'BATTLE' ? this.bgmAudio : type === 'CLEAR' ? this.clearBgmAudio : null;
-    let audioRecovery = Promise.resolve(true);
-    if (audio && audio.paused) {
-      try {
-        audioRecovery = Promise.resolve(audio.play()).then(() => true).catch(() => false);
-      } catch (error) {
-        audioRecovery = Promise.resolve(false);
-      }
-    }
-
-    return Promise.all([Promise.resolve(contextRecovery).catch(() => false), audioRecovery]).then(([isRunning, audioResumed]) => {
-      if (!this.soundEnabled || this.currentBgmType !== type) return false;
-      if (type === 'PEACE') {
-        if (!isRunning || this.peaceBgmGeneration !== generation) return false;
-        this.ensurePeaceBgmSource();
-        return this.peaceBgmPlaying;
-      }
-      return audioResumed;
-    }).catch(() => false);
-  }
-
-  // ★戦闘モードBGM開始（ヤンキー登場以降：ユーザー提供の神曲MP3！）
-  startBattleBGM() {
-    this.stopPeaceBGM();
-    this.stopClearBGM();
-    this.currentBgmType = 'BATTLE';
-    if (!this.soundEnabled) return;
     this.init();
-
-    this.bgmPlaying = true;
-    try {
-      this.bgmAudio.currentTime = 0;
-      const promise = this.bgmAudio.play();
-      if (promise !== undefined) {
-        promise.catch(e => {
-          console.log('Battle BGM play prevented or waiting for user interaction', e);
-        });
-      }
-    } catch(e) {}
+    return this.playBgmAudio();
   }
 
-  // 戦闘モードBGM停止
-  stopBattleBGM() {
-    this.bgmPlaying = false;
-    try {
-      this.bgmAudio.pause();
-    } catch(e) {}
-  }
+  startBGM() { return this.startTrackBGM(this.currentBgmType === 'NONE' ? 'PEACE' : this.currentBgmType); }
 
-  // ★クリア・エンディングモードBGM開始（ユーザー提供の爽快温かい神曲MP3！）
-  startClearBGM() {
-    this.stopPeaceBGM();
-    this.stopBattleBGM();
-    this.currentBgmType = 'CLEAR';
-    if (!this.soundEnabled) return;
-    this.init();
-
-    try {
-      if (this.clearBgmAudio) {
-        this.clearBgmAudio.currentTime = 0;
-        const promise = this.clearBgmAudio.play();
-        if (promise !== undefined) {
-          promise.catch(e => {
-            console.log('Clear BGM play prevented or waiting for user interaction', e);
-          });
-        }
-      }
-    } catch(e) {}
-  }
-
-  // クリアBGM停止
-  stopClearBGM() {
-    try {
-      if (this.clearBgmAudio) {
-        this.clearBgmAudio.pause();
-      }
-    } catch(e) {}
-  }
-
-  // 汎用BGM開始（デフォルトは現在の状態、未指定なら平和モード）
-  startBGM() {
-    if (this.currentBgmType === 'BATTLE') {
-      this.startBattleBGM();
-    } else if (this.currentBgmType === 'CLEAR') {
-      this.startClearBGM();
-    } else {
-      this.startPeaceBGM();
-    }
-  }
-
-  // 全BGM完全停止
   stopBGM() {
-    this.stopPeaceBGM();
-    this.stopBattleBGM();
-    this.stopClearBGM();
-    this.stopMikoshiSound();
+    this.bgmGeneration++;
     this.currentBgmType = 'NONE';
+    this.bgmAudio.pause();
+    this.bgmPlaying = false;
+    this.peaceBgmPlaying = false;
+    this.stopMikoshiSound();
   }
 }

@@ -392,8 +392,9 @@ assert.ok(travel.every((distance) => Math.abs(distance - 120) < 0.01), `frame-ra
 }
 
 class FakeAudio {
-  constructor() { this.currentTime = 0; this.loop = false; this.volume = 1; this.paused = true; }
-  play() { return Promise.resolve(); }
+  constructor(src) { this.src=src; this.currentTime = 0; this.loop = false; this.volume = 1; this.paused = true; this.playCalls=0; }
+  play() { this.paused=false; this.playCalls++; return Promise.resolve(); }
+  load() {}
   pause() { this.paused = true; }
 }
 const soundContext = vm.createContext({
@@ -422,84 +423,48 @@ vm.runInContext(`${fs.readFileSync(path.join(root, 'js/sound.js'), 'utf8')}\nglo
   assert.equal(sound.currentBgmType, 'CLEAR');
 }
 
-async function verifyPeaceBgmWaitsForAudioResume() {
-  let finishResume;
-  const sources = [];
-  class DeferredAudioContext {
-    constructor() {
-      this.state = 'suspended'; this.currentTime = 0; this.sampleRate = 8000;
-      this.destination = {}; this.listeners = [];
-    }
-    addEventListener(type, fn) { if (type === 'statechange') this.listeners.push(fn); }
-    resume() {
-      return new Promise(resolve => { finishResume = () => {
-        this.state = 'running'; this.listeners.forEach(fn => fn()); resolve();
-      }; });
-    }
-    suspend() { this.state = 'interrupted'; return Promise.resolve(); }
-    createBuffer(channels, length, sampleRate) {
-      const data = new Float32Array(length);
-      return { sampleRate, duration:length/sampleRate, getChannelData:() => data };
-    }
-    createBufferSource() {
-      const source = { context:this, starts:0, stops:0, disconnected:false,
-        connect() {}, start() { this.starts++; }, stop() { this.stops++; },
-        disconnect() { this.disconnected=true; } };
-      sources.push(source); return source;
-    }
-  }
-  soundContext.window.AudioContext = DeferredAudioContext;
+async function verifySharedBgmTransport() {
   const sound = new soundContext.__SoundSystem();
-  sound.loadCustomAudioBuffers = () => {};
-  const oldTimeout = soundContext.setTimeout;
-  let timers = 0;
-  soundContext.setTimeout = () => { timers++; return 1; };
-  sound.startPeaceBGM();
-  assert.equal(sound.peaceBgmPlaying, false, 'peace music waits for audio permission');
-  assert.equal(sources.length, 0, 'no source before context resumes');
-  finishResume();
-  await new Promise(resolve => setImmediate(resolve));
-  const first = sound.peaceBgmSource;
-  assert.equal(first.loop, true, 'audio thread repeats the entire melody');
-  assert.equal(first.starts, 1);
-  assert.equal(timers, 0, 'continuous music has no per-note JavaScript timer');
-  assert.ok(first.buffer.duration > 4 && first.buffer.duration < 5);
-  const samples = first.buffer.getChannelData(0);
-  assert.ok(samples.some(v => Math.abs(v) > .01), 'PCM melody is audible, not an empty loop');
-  assert.ok(samples.every(v => Number.isFinite(v) && Math.abs(v) < .15), 'samples stay finite and within headroom');
-  assert.equal(Math.abs(samples[0]), 0, 'start ramps in without a click');
-  assert.equal(samples[samples.length-1], 0, 'rest gives a silent loop seam');
-
-  await sound.ctx.suspend();
-  const resumeCurrent = sound.resumeCurrentBGM();
-  finishResume(); await resumeCurrent;
-  assert.equal(sound.peaceBgmSource, first, 'interruption resumes the same loop without duplicate tracks');
-  assert.equal(first.starts, 1);
+  // 効果音のコンテキストが復帰しなくても、BGMの再生許可は同期的に取得する。
+  sound.init = () => new Promise(() => {});
+  const player = sound.bgmAudio;
+  await sound.startPeaceBGM();
+  assert.equal(player.src, 'assets/bgm_peace.m4a');
+  assert.equal(player.loop, true);
+  assert.equal(sound.peaceBgmPlaying, true);
+  player.currentTime = 3;
+  await sound.startPeaceBGM();
+  assert.equal(player.currentTime, 3, 'repeated peace requests keep their position');
+  assert.equal(player.playCalls, 1, 'gestures do not restart a playing track');
+  player.pause();
   await sound.resumeCurrentBGM();
-  assert.equal(sources.length, 1, 'repeated gestures do not restart music');
+  assert.equal(player.currentTime, 3, 'interruption resumes from its position');
+  assert.equal(player.paused, false);
 
-  // OSにより音源が終了した場合は、次の操作で同じバッファを再利用する。
-  first.onended();
+  await sound.startBattleBGM();
+  assert.equal(sound.bgmAudio, player, 'battle reuses the player unlocked at departure');
+  assert.equal(player.src, 'assets/bgm.m4a');
+  player.currentTime = 4;
+  await sound.startBattleBGM();
+  assert.equal(player.currentTime, 4, 'closing a cut-in does not rewind battle music');
+  assert.equal(sound.peaceBgmPlaying, false);
+  await sound.startClearBGM();
+  assert.equal(sound.clearBgmAudio, player);
+  assert.equal(player.src, 'assets/bgm_clear.m4a');
+  sound.stopBGM();
   await sound.resumeCurrentBGM();
-  const recovered = sound.peaceBgmSource;
-  assert.notEqual(recovered, first);
-  assert.equal(recovered.buffer, first.buffer);
-  sound.stopPeaceBGM();
-  assert.equal(recovered.stops, 1);
-  assert.equal(recovered.disconnected, true);
-  sound.ctx.listeners.forEach(fn => fn());
-  assert.equal(sound.peaceBgmSource, null, 'explicit stop is not undone by a context event');
+  assert.equal(player.paused, true, 'explicit stop is not undone by a gesture');
 
-  const staleSound = new soundContext.__SoundSystem();
-  staleSound.loadCustomAudioBuffers = () => {};
-  const countBeforeTransition = sources.length;
-  staleSound.startPeaceBGM(); const finishStaleResume = finishResume;
-  staleSound.startBattleBGM(); finishStaleResume();
-  await new Promise(resolve => setImmediate(resolve));
-  assert.equal(staleSound.currentBgmType, 'BATTLE');
-  assert.equal(staleSound.peaceBgmPlaying, false);
-  assert.equal(sources.length, countBeforeTransition, 'pending peace startup cannot play over battle');
-  soundContext.setTimeout = oldTimeout;
+  // 開始のPromiseが後から完了しても、古い曲の状態へ戻さない。
+  const late = new soundContext.__SoundSystem();
+  late.init = () => Promise.resolve(false);
+  let finish;
+  late.bgmAudio.play = function() { this.paused=false; return new Promise(r => { finish=r; }); };
+  const pending = late.startPeaceBGM();
+  late.stopBGM(); finish(); await pending;
+  assert.equal(late.currentBgmType, 'NONE');
+  assert.equal(late.peaceBgmPlaying, false);
+  assert.equal(late.bgmAudio.paused, true);
 }
 
 
@@ -664,8 +629,32 @@ async function verifyPeaceBgmWaitsForAudioResume() {
   assert.ok(!styles.some(s => /255, ?255, ?255|#fff(?:fff)?$/i.test(s)), 'no white wash or white hit core');
 }
 
-verifyPeaceBgmWaitsForAudioResume().then(() => {
-  console.log('PDCA regression checks passed: 30 + peace BGM loop/resume');
+// 横長カットインの背景は可視領域を埋め、中央の文字は従来の縮尺で収める。
+{
+  const image = {complete:true,naturalWidth:1600,naturalHeight:900};
+  let backdrop, transform;
+  const ctx = new Proxy({}, { get:(_, key) => key === 'drawImage' ? (...args) => { backdrop=args; } :
+    key === 'scale' ? (...args) => { transform=args; } : () => {} });
+  const game = makeGame({viewW:880,viewH:340,eventState:'YANKEE',images:{splashYankee:image}});
+  let foreground = 0;
+  game.renderCinematic(ctx, () => foreground++);
+  assert.equal(foreground, 1);
+  assert.ok(backdrop[3] >= game.viewW && backdrop[4] >= game.viewH, 'background fills all side margins');
+  assert.equal(transform[0], 340/495, 'foreground fits vertically without cutting text');
+}
+
+// 演出終了で既に鳴っている戦闘曲を先頭から再生しない。
+{
+  let started=0, resumed=0;
+  const game = makeGame({eventState:'YANKEE',sound:{startBattleBGM(){started++;},resumeCurrentBGM(){resumed++;}}});
+  game.endEventCutin();
+  assert.equal(started, 0);
+  assert.equal(resumed, 1);
+  assert.equal(game.eventState, 'NONE');
+}
+
+verifySharedBgmTransport().then(() => {
+  console.log('PDCA regression checks passed: 32 + shared BGM transport/resume');
 }).catch((error) => {
   console.error(error);
   process.exitCode = 1;

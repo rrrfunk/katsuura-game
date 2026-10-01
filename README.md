@@ -40,3 +40,5 @@
 `node tests/balance-simulation.cjs`で6種類の固定乱数を使い、回収を優先する自動操作と回収しない自動操作を比較する。描画を省略した参考値であり、人のクリア率・実機FPSではない。
 
 ローカル確認は`node server.js`。スマホ横（852×330、667×280）、縦回転、メニュー・遊び方・結果をブラウザで確認する。iPhone Safari/Chrome実機のバー伸縮・ホーム画面起動は、デスクトップ上のエミュレーションと別の検証項目とする。
+
+平和BGMは `assets/bgm_peace.m4a`。元の朝市メロディを `scripts/build-peace-bgm.cjs` でWAV化し、macOSの `afconvert -f m4af -d 'aac ' -b 64000` でAACへ変換する。BGMは同じHTMLAudioを使い、カットイン終了では曲を先頭へ戻さない。
