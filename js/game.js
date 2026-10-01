@@ -524,20 +524,10 @@ class AsaichiGame {
         e.preventDefault();
       }
 
-      if (this.eventState !== 'NONE' && this.eventLockoutTimer <= 0) {
-        if (e.code === 'Space' || e.code === 'Enter') {
-          e.preventDefault();
-          this.endEventCutin();
-          return;
-        }
-      }
-
-      if (this.assistCutin && this.assistCutin.lockoutTimer <= 0) {
-        if (e.code === 'Space' || e.code === 'Enter') {
-          e.preventDefault();
-          this.endAssistCutin();
-          return;
-        }
+      if ((this.eventState !== 'NONE' || this.assistCutin) && (e.code === 'Space' || e.code === 'Enter')) {
+        e.preventDefault();
+        if (!e.repeat) this.continueCutin();
+        return;
       }
 
       if (this.state === 'TITLE') {
@@ -638,16 +628,8 @@ class AsaichiGame {
     });
 
     this.canvas.addEventListener('mousedown', (e) => {
-      if (this.assistCutin) {
-        if (this.assistCutin.lockoutTimer <= 0) {
-          this.endAssistCutin();
-        }
-        return;
-      }
-      if (this.eventState !== 'NONE') {
-        if (this.eventLockoutTimer <= 0) {
-          this.endEventCutin();
-        }
+      if (this.assistCutin || this.eventState !== 'NONE') {
+        if (e.button === 0) this.continueCutin();
         return;
       }
       if (e.button === 0 && this.state === 'PLAYING') {
@@ -682,18 +664,9 @@ class AsaichiGame {
     this.directTouchId = null;
 
     this.canvas.addEventListener('touchstart', (e) => {
-      if (this.assistCutin) {
+      if (this.assistCutin || this.eventState !== 'NONE') {
         e.preventDefault();
-        if (this.assistCutin.lockoutTimer <= 0) {
-          this.endAssistCutin();
-        }
-        return;
-      }
-      if (this.eventState !== 'NONE') {
-        e.preventDefault();
-        if (this.eventLockoutTimer <= 0) {
-          this.endEventCutin();
-        }
+        this.continueCutin();
         return;
       }
       if (!this.isGameInputBlocked()) {
@@ -1103,7 +1076,25 @@ class AsaichiGame {
     this.screenShake = 0.4;
   }
 
-  // カットイン終了＆ゲーム復帰処理（タップ／キー入力または4秒経過でスムーズにバトル突入！）
+  // 画面タップ・ボタン・PCの新しいキー押下だけで進む。持続入力を戦闘へ持ち越さない。
+  continueCutin() {
+    if (this.isGameInputBlocked()) return false;
+    if (this.assistCutin) {
+      if (this.assistCutin.lockoutTimer > 0) return false;
+      this.clearInputState();
+      this.endAssistCutin();
+      return true;
+    }
+    if (this.eventState !== 'NONE') {
+      if (this.eventLockoutTimer > 0) return false;
+      this.clearInputState();
+      this.endEventCutin();
+      return true;
+    }
+    return false;
+  }
+
+  // カットイン終了＆ゲーム復帰処理（明示的な入力からのみ呼ぶ）
   endEventCutin() {
     if (this.eventState === 'NONE') return;
     const prevState = this.eventState;
@@ -1136,7 +1127,6 @@ class AsaichiGame {
       title: 'お助けキャラ登場！',
       speech: speechText,
       timer: 0,
-      maxTimer: 1.4, // 約1.4秒のダイナミック必殺技演出
       lockoutTimer: 0.25 // 誤タップ防止
     };
     this.sound.playAssistCutinSE();
@@ -1256,24 +1246,16 @@ class AsaichiGame {
     // カットインイベント中（ヤンキー乱入・キョン乱入時：演出をしっかり見せる）
     if (this.eventState !== 'NONE') {
       this.eventTimer += dt;
-      if (this.eventLockoutTimer > 0) this.eventLockoutTimer -= dt;
-      // 4.0秒経過で自動進行（安全弁）
-      if (this.eventTimer >= 4.0) {
-        this.endEventCutin();
-      }
+      this.eventLockoutTimer = Math.max(0, this.eventLockoutTimer - dt);
       // イベント中は敵の動きや攻撃、タイマーを一時停止して演出に集中
       this.updateCamera();
       return;
     }
 
-    // お助けキャラカットイン演出中（1.4秒後に自動復帰、またはタップ/クリックで即スキップ！）
+    // 助っ人の演出も、画面タップまで戦闘・タイマーを停止する。
     if (this.assistCutin) {
       this.assistCutin.timer += dt;
-      if (this.assistCutin.lockoutTimer > 0) this.assistCutin.lockoutTimer -= dt;
-      // 1.4秒の演出完了で自動的に戦闘へ爽快復帰！（操作不要でテンポ抜群）
-      if (this.assistCutin.timer >= (this.assistCutin.maxTimer || 1.4)) {
-        this.endAssistCutin();
-      }
+      this.assistCutin.lockoutTimer = Math.max(0, this.assistCutin.lockoutTimer - dt);
       this.updateCamera();
       return;
     }
@@ -3303,8 +3285,6 @@ class AsaichiGame {
     const viewW = 880;
     const viewH = 495;
     const t = cutin.timer;
-    const maxT = cutin.maxTimer;
-    const p = Math.min(1.0, t / maxT);
 
     ctx.save();
 
@@ -3615,41 +3595,7 @@ class AsaichiGame {
       ctx.restore();
     }
 
-    // 3. クリック/タップで閉じる（出撃）ボタンUI（点滅案内）
-    if (cutin.lockoutTimer <= 0) {
-      const blink = 0.8 + Math.sin(t * 8) * 0.2;
-      const btnW = 360;
-      const btnH = 46;
-      const btnX = (viewW - btnW) / 2;
-      const btnY = viewH - 58;
-
-      ctx.save();
-      // 半透明グラデーション背景
-      const btnBg = ctx.createLinearGradient(btnX, btnY, btnX, btnY + btnH);
-      btnBg.addColorStop(0, 'rgba(15, 23, 42, 0.92)');
-      btnBg.addColorStop(1, 'rgba(30, 41, 59, 0.95)');
-      ctx.fillStyle = btnBg;
-      ctx.strokeStyle = `rgba(245, 158, 11, ${blink})`;
-      ctx.lineWidth = 2.5;
-      ctx.shadowColor = '#f59e0b';
-      ctx.shadowBlur = 14 * blink;
-      ctx.beginPath();
-      ctx.roundRect(btnX, btnY, btnW, btnH, 23);
-      ctx.fill();
-      ctx.stroke();
-
-      // ボタン内テキスト
-      ctx.font = 'bold 16px sans-serif';
-      ctx.textAlign = 'center';
-      ctx.textBaseline = 'middle';
-      ctx.fillStyle = '#fef08a';
-      ctx.shadowColor = '#000000';
-      ctx.shadowBlur = 6;
-      ctx.fillText('⚡ 画面クリック / タップで出撃！ ▶', viewW / 2, btnY + btnH / 2);
-      ctx.restore();
-    }
-
-    // 4. 開始時の白閃光フラッシュ（必殺技炸裂の衝撃）
+    // 3. 開始時の白閃光フラッシュ（続行ボタンはDOMで表示する）
     if (t < 0.10) {
       const flashAlpha = (1.0 - t / 0.10) * 0.55;
       ctx.fillStyle = `rgba(255, 255, 255, ${flashAlpha})`;

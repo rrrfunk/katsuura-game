@@ -141,9 +141,10 @@ function makeGame(overrides = {}) {
   assert.deepEqual(draws[0].slice(1, 5), [522, 80, 261, 220]);
 }
 
-// 同時回収した援護カットインを上書きせず、両方の効果を順番に起動する。
+// 助っ人を30秒待っても自動出撃せず、待ち行列は新しい入力ごとに1枚ずつ進む。
 {
-  const game = makeGame({ assistCutin: null, assistCutinQueue: [], sound: { playAssistCutinSE() {} } });
+  const game = makeGame({ eventState: 'NONE', assistCutin: null, assistCutinQueue: [],
+    sound: { playAssistCutinSE() {} }, updateCamera() {} });
   const startedActions = [];
   game.spawnAllyCat = () => startedActions.push('noraneko');
   game.triggerTandemBikeRush = () => startedActions.push('tandem');
@@ -151,12 +152,59 @@ function makeGame(overrides = {}) {
   game.triggerAssistCutin('tandem', 'タンデム');
   assert.equal(game.assistCutin.type, 'noraneko');
   assert.deepEqual(game.assistCutinQueue.map((item) => item.type), ['tandem']);
-  game.endAssistCutin();
+  const time = game.survivalTime;
+  assert.equal(game.continueCutin(), false, 'opening lockout prevents accidental dismissal');
+  for (let i = 0; i < 60; i++) game.update(0.5);
+  assert.equal(game.assistCutin.type, 'noraneko');
+  assert.deepEqual(startedActions, [], 'time alone must not summon an ally');
+  assert.equal(game.continueCutin(), true);
   assert.deepEqual(startedActions, ['noraneko']);
   assert.equal(game.assistCutin.type, 'tandem');
-  game.endAssistCutin();
+  assert.equal(game.continueCutin(), false, 'the next cut-in requires a fresh input after its lockout');
+  for (let i = 0; i < 60; i++) game.update(0.5);
+  assert.equal(game.assistCutin.type, 'tandem');
+  assert.deepEqual(startedActions, ['noraneko']);
+  assert.equal(game.survivalTime, time, 'all waiting time is excluded from battle time');
+  assert.equal(game.continueCutin(), true);
   assert.deepEqual(startedActions, ['noraneko', 'tandem']);
   assert.equal(game.assistCutin, null);
+}
+
+// ヤンキー・キョンの登場も30秒待ち続け、明示入力だけで戦闘へ戻る。
+{
+  for (const eventState of ['YANKEE', 'KYON']) {
+    const enemy = { x: 100, y: 100, hp: 10 };
+    const game = makeGame({ eventState, eventTimer: 0, eventLockoutTimer: 0.5,
+      enemies: [enemy], updateCamera() {} });
+    const time = game.survivalTime;
+    assert.equal(game.continueCutin(), false);
+    for (let i = 0; i < 60; i++) game.update(0.5);
+    assert.equal(game.eventState, eventState);
+    assert.equal(game.survivalTime, time);
+    assert.deepEqual(enemy, { x: 100, y: 100, hp: 10 });
+    assert.equal(game.continueCutin(), true);
+    assert.equal(game.eventState, 'NONE');
+    assert.equal(game.continueCutin(), false, 'one input completes the event exactly once');
+  }
+}
+
+// 一時停止・縦向き・回転復帰待ちでは続行不可。再開時に押下状態を持ち越さない。
+{
+  const game = makeGame({ eventState: 'KYON', eventTimer: 1, eventLockoutTimer: 0,
+    keys: { ArrowUp: true }, mouseInput: { active: true, isDown: true },
+    mobileUI: { isPaused: true } });
+  assert.equal(game.continueCutin(), false);
+  game.mobileUI.isPaused = false;
+  game.mobilePortrait = true;
+  assert.equal(game.continueCutin(), false);
+  game.mobilePortrait = false;
+  game.orientationResumeRequired = true;
+  assert.equal(game.continueCutin(), false);
+  game.orientationResumeRequired = false;
+  assert.equal(game.continueCutin(), true);
+  assert.deepEqual(Object.keys(game.keys), []);
+  assert.equal(game.mouseInput.active, false);
+  assert.equal(game.mouseInput.isDown, false);
 }
 
 // 説明画面の「タイトルへ戻る」はゲーム状態・音・タイトル表示を一緒に戻す。
@@ -654,7 +702,7 @@ async function verifySharedBgmTransport() {
 }
 
 verifySharedBgmTransport().then(() => {
-  console.log('PDCA regression checks passed: 32 + shared BGM transport/resume');
+  console.log('PDCA regression checks passed: 34 + shared BGM transport/resume');
 }).catch((error) => {
   console.error(error);
   process.exitCode = 1;

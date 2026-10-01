@@ -9,8 +9,11 @@ class MobileUI {
       this.elements[id] = document.getElementById(id);
     }
     this.menu = this.elements['pause-menu'];
+    this.elements['event-continue'].addEventListener('keydown', e => {
+      if (e.repeat && (e.code === 'Space' || e.code === 'Enter')) e.preventDefault();
+    });
     this.elements['event-continue'].addEventListener('click', () => {
-      if (!game.isGameInputBlocked() && game.eventState !== 'NONE' && game.eventLockoutTimer <= 0) game.endEventCutin();
+      game.continueCutin();
       this.syncVisibility();
     });
     this.elements['skip-peace'].addEventListener('click', () => game.startBattle());
@@ -84,8 +87,9 @@ class MobileUI {
     const cinematic = g.eventState !== 'NONE' || !!g.assistCutin;
     const eventButton = this.elements['event-continue'];
     eventButton.hidden = g.state !== 'PLAYING' || g.mobilePortrait || g.orientationResumeRequired ||
-      this.isPaused || tutorialOpen || g.eventState === 'NONE';
-    eventButton.disabled = g.eventLockoutTimer > 0;
+      this.isPaused || tutorialOpen || !cinematic;
+    eventButton.disabled = (g.assistCutin ? g.assistCutin.lockoutTimer : g.eventLockoutTimer) > 0;
+    this.setText('event-continue', g.assistCutin ? 'タップで出撃' : 'バトル開始');
     const visible = g.state === 'PLAYING' && !g.mobilePortrait && !g.orientationResumeRequired &&
       !this.isPaused && !tutorialOpen && !cinematic;
     document.body.classList.toggle('play-controls-visible', visible);
