@@ -11,8 +11,8 @@
   <title>にゃんと多忙な勝浦朝市！〜おつかい猫のヤンキー大乱闘〜 【SFC超美麗版】</title>
   <link rel="manifest" href="manifest.json">
   <link rel="apple-touch-icon" href="assets/apple-touch-icon.png">
-  <link rel="stylesheet" href="style.css?v=20261001_joystick_v13">
-  <link rel="stylesheet" href="mobile.css?v=20261004_kimie_v17">
+  <link rel="stylesheet" href="style.css?v=20261004_guide_v19">
+  <link rel="stylesheet" href="mobile.css?v=20261004_guide_v19">
 </head>
 <body>
   <div id="game-container">
@@ -80,59 +80,7 @@
       <!-- 1. タイトル画面（ChatGPT生成の超美麗1枚絵全面＋STARTボタン連動ヒットボックス） -->
       <div id="title-overlay" class="overlay title-screen">
         <img class="title-art" src="assets/title_bg.webp?v=20260929_webp_lightweight_v1" alt="にゃんと多忙な勝浦朝市！ おつかい猫のヤンキー大乱闘" draggable="false">
-        <button id="btn-quick-start" class="sfc-start-hitbox" title="START 出撃！" aria-label="出撃してゲームを始める"><span class="mobile-start-label">出撃する ▶</span></button>
-      </div>
-
-      <!-- 3. 操作説明チュートリアルオーバーレイ -->
-      <div id="tutorial-overlay" class="overlay hidden">
-        <div class="overlay-card tutorial-card">
-          <h2 class="tutorial-title">🐾 にゃんと多忙な勝浦朝市指南書（遊び方）</h2>
-          
-          <div class="tutorial-grid">
-            <!-- カード1: 移動とオート攻撃 -->
-            <div class="tuto-item highlight">
-              <div class="tuto-icon">🐾🖱️📱</div>
-              <div class="tuto-header">1. 移動 ＆ オート攻撃</div>
-              <p>【PC】マウスの左ボタンを押したまま移動！（WASDキーでもOK）<br>
-              【スマホ】横向きにして右下のスティックを操作！<br>
-              <strong>攻撃は完全フルオート！</strong>最寄りの敵へ自動で鋭い爪撃や回転カツオが炸裂！</p>
-            </div>
-
-            <!-- カード2: ノンストップ自動進化ツリー -->
-            <div class="tuto-item highlight">
-              <div class="tuto-icon">⭐🐾🐟⚡</div>
-              <div class="tuto-header">2. ノンストップ自動進化！</div>
-              <p>敵を倒してレベルアップすると<strong>画面を止めずに即座に自動進化</strong>！<br>
-              ツメLv1 ➜ カツオLv1 ➜ 子猫Lv1 ➜ ツメLv2 ➜ カツオLv2 ➜ 子猫Lv2 ➜ ツメLv3 ➜ カツオLv3 ➜ 子猫Lv3 ➜ 勝浦神罰落雷！</p>
-            </div>
-
-            <!-- カード3: ６０代爆走タンデムクロスバイク -->
-            <div class="tuto-item highlight">
-              <div class="tuto-icon">🚲💨👴👵</div>
-              <div class="tuto-header">3. ６０代爆走タンデムバイク！</div>
-              <p><strong>アイスコーヒー</strong>に触れて拾うと、ミケの向いている左右の方向へタンデムが走り、細い道を切り開く！<br>
-              移動速度も上がるので、その道を通って次のアイテムへ！</p>
-            </div>
-
-            <!-- カード4: 勝浦名物わらび餅（助太刀にゃんこ参上！） -->
-            <div class="tuto-item">
-              <div class="tuto-icon">🍡🐾⚡</div>
-              <div class="tuto-header">4. 朝市名物わらび餅 ＆ 助太刀</div>
-              <p>🍡<strong>わらび餅</strong>: ノラがミケの近くをジグザグに走り、周囲の敵を押し返す！<br>
-              🍜<strong>勝浦タンタン麺</strong>: 神輿が広い範囲を押し返す！<br>
-              ※アイテムは吸い寄せられません。ミケを重ねて拾おう！早く拾うと次の品物が早く出現。<br>敵の頭上に「！」が出たら、構えている間によけるニャ！</p>
-            </div>
-          </div>
-
-          <div class="tutorial-summary-banner">
-            🎯 <strong>超シンプル操作</strong>：PCはWASDまたはマウスドラッグ、スマートフォンは横画面の右下スティックで移動！
-          </div>
-
-          <div class="menu-btn-group">
-            <button id="btn-tutorial-start" class="start-button">ゲームに戻る</button>
-            <button id="btn-tutorial-back" class="sub-action-button">タイトルへ戻る</button>
-          </div>
-        </div>
+        <button id="btn-quick-start" class="sfc-start-hitbox" title="START 遊び方へ" aria-label="START 遊び方を見て始める"><span class="mobile-start-label">START ▶</span></button>
       </div>
 
       <!-- 4. リザルト画面オーバーレイ -->
@@ -203,6 +151,24 @@
     </div>
   </div>
 
+  <!-- START後・説明メニュー共通。絵のページ送り中はゲームを開始／更新しない。 -->
+  <dialog id="tutorial-overlay" class="hidden" aria-labelledby="guide-title">
+    <div class="guide-shell">
+      <div class="guide-header"><h2 id="guide-title" class="guide-sr-only">遊び方</h2><span id="guide-page" aria-label="ページ">1 / 4</span></div>
+      <div class="guide-content">
+        <div id="guide-art" class="guide-art"><img id="guide-image" src="assets/tutorial-guide.webp?v=20261004_guide_v19" alt="ジョイスティックでミケを動かそう" width="1774" height="887" decoding="async" draggable="false"></div>
+        <p id="guide-fallback" class="guide-fallback" hidden></p>
+        <p id="guide-caption" class="guide-sr-only" aria-live="polite" aria-atomic="true"></p>
+        <p id="guide-pc-tip" class="guide-pc-tip">PC：WASD・矢印キー・マウスドラッグで移動</p>
+      </div>
+      <div class="guide-actions">
+        <button id="btn-tutorial-back" type="button" class="guide-close">閉じる</button>
+        <button id="guide-prev" type="button" disabled>戻る</button>
+        <button id="btn-tutorial-start" type="button" class="guide-next">次へ ▶</button>
+      </div>
+    </div>
+  </dialog>
+
   <dialog id="pause-menu" aria-labelledby="pause-title">
     <div class="pause-heading"><div><p>勝浦朝市パトロール</p><h2 id="pause-title">ひとやすみ</h2></div><button id="mobile-resume" type="button" autofocus>続ける ▶</button></div>
     <p id="pause-stats"></p>
@@ -232,7 +198,8 @@
   <script src="js/peace-scene.js?v=20261004_kimie_v17"></script>
   <script src="js/mobile-ui.js?v=20261004_kimie_v17"></script>
   <script src="js/enemy-tactics.js?v=20261004_cues_v15"></script>
-  <script src="js/kimie.js?v=20261004_kimie_speed_v18"></script>
-  <script src="js/game.js?v=20261004_kimie_v17"></script>
+  <script src="js/kimie.js?v=20261004_guide_v19"></script>
+  <script src="js/tutorial-guide.js?v=20261004_guide_v19"></script>
+  <script src="js/game.js?v=20261004_guide_v19"></script>
 </body>
 </html>

@@ -2,7 +2,7 @@
 const Kimie = {
   shrine: Object.freeze({ x: 688, y: 74, radius: 22 }),
   stairs: Object.freeze({ x: 622, y: 90, w: 130, h: 280 }),
-  slash: Object.freeze({ radius: 90, halfAngle: Math.PI / 3, interval: 0.36, duration: 0.12 }),
+  slash: Object.freeze({ radius: 90, halfAngle: Math.PI / 3, interval: 0.12, duration: 0.1, stagger: 0.18 }),
 
   reset(game) {
     Object.assign(game.player, {
@@ -59,7 +59,7 @@ const Kimie = {
     if (p.character !== 'kimie') return;
     if (p.daikonSwing) {
       p.daikonSwing.age += dt;
-      if (p.daikonSwing.age >= this.slash.duration) p.daikonSwing = null;
+      if (p.daikonSwing.age >= (p.daikonSwing.duration || this.slash.duration)) p.daikonSwing = null;
     }
     p.daikonCooldown = Math.max(0, (p.daikonCooldown || 0) - dt);
     if (!game.firstYankeeEventDone || game.survivalTime < 15 || p.daikonCooldown > 0 || game.isVictoryClear) return;
@@ -67,12 +67,15 @@ const Kimie = {
     if (!game.enemies.some(e => this.isInSlash(p, e, angle))) return;
     const spice = game.skills.spice.level;
     p.daikonCooldown = this.slash.interval * Math.max(0.55, 1 - spice * 0.08);
-    p.daikonSwing = { angle, age: 0, dir: p.dir };
+    p.daikonSwing = { angle, age: 0, dir: p.dir, duration: Math.min(this.slash.duration, p.daikonCooldown) };
     game.sound.playSlash();
     const damage = (60 + game.skills.scratch.level * 12) * (1 + spice * 0.35) * GAME_BALANCE.autoAttackMultiplier;
     // 描画フレームでは判定しない。撃破・進化が起きても1振りにつき各敵へ1回だけ。
     for (const enemy of [...game.enemies]) {
-      if (this.isInSlash(p, enemy, angle)) game.damageEnemy(enemy, damage, p.x, p.y);
+      if (this.isInSlash(p, enemy, angle) && game.damageEnemy(enemy, damage, p.x, p.y)) {
+        // 正面の連撃で敵の接近を止める。横・背後への接触判定は通常どおり。
+        enemy.stunTimer = Math.max(enemy.stunTimer || 0, this.slash.stagger);
+      }
     }
   },
 
@@ -136,7 +139,7 @@ const Kimie = {
     const swing = p.daikonSwing;
     const row = { down: 0, right: 1, up: 2, left: 3 }[swing?.dir || p.dir] ?? 0;
     // 大根・握る手・腕を同じ絵に含め、歩行4コマと斬撃4コマを切り替える。
-    const col = swing ? 4 + Math.min(3, Math.floor(swing.age / this.slash.duration * 4)) :
+    const col = swing ? 4 + Math.min(3, Math.floor(swing.age / (swing.duration || this.slash.duration) * 4)) :
       (p.isMoving ? p.animFrame % 4 : 1);
     const sw = img.naturalWidth / 8, sh = img.naturalHeight / 4;
     ctx.imageSmoothingEnabled = false;
@@ -160,7 +163,7 @@ const Kimie = {
     const p = game.player, swing = p.daikonSwing;
     if (!swing) return;
     const aim = swing.angle;
-    const progress = Math.min(1, swing.age / this.slash.duration);
+    const progress = Math.min(1, swing.age / (swing.duration || this.slash.duration));
     const angle = aim - this.slash.halfAngle + progress * this.slash.halfAngle * 2;
     ctx.save(); ctx.shadowBlur = 0;
     ctx.translate(0, -20);

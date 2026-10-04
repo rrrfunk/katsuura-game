@@ -151,4 +151,21 @@ for (const block of [g => { g.mobileUI = { isPaused: true }; },
   const waiting = fresh(); Object.assign(waiting.player, kimie.shrine); block(waiting); waiting.update(0.2);
   assert.equal(waiting.player.character, 'mike');
 }
-console.log('Kimie regression passed: stair access, contact unlock, 1→4 companions, shared evolution, 120° slash, facing, pause and restart');
+// 正対したままの連撃で敵の接近を抑える。FPSや敵種に左右されず、背後は被弾する。
+for (const fps of [30, 60, 120]) {
+  for (const type of ['tsuppari', 'tokko', 'skater', 'kyon', 'tonbi', 'boss_kyon', 'boss_yankee']) {
+    const g = fresh(); unlock(g);
+    Object.assign(g.player, { x: 688, y: 590, dir: 'right', aimAngle: 0 });
+    g.survivalTime = 50; g.firstYankeeEventDone = true;
+    g.spawnEnemy(type, 850, 590);
+    for (let i = 0; i < fps * 5; i++) { kimie.updateAttack(g, 1 / fps); g.updateEnemies(1 / fps); }
+    assert.equal(g.player.hp, 100, `${type}, ${fps}fps: 正面を連撃で守る`);
+  }
+  const g = fresh(); unlock(g);
+  Object.assign(g.player, { x: 688, y: 590, dir: 'right', aimAngle: 0 });
+  g.survivalTime = 50; g.firstYankeeEventDone = true;
+  g.spawnEnemy('tsuppari', 666, 590);
+  kimie.updateAttack(g, 1 / fps); g.updateEnemies(1 / fps);
+  assert.ok(g.player.hp < 100, '背後への無敵化はしない');
+}
+console.log('Kimie regression passed: unlock, 1→4 companions, evolution, directional rapid attack at 30/60/120fps, rear contact, pause and restart');

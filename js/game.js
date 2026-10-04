@@ -252,6 +252,7 @@ class AsaichiGame {
 
     this.mobileUI?.resize();
     this.mobileUI?.syncVisibility();
+    this.tutorial?.refreshStartButton();
   }
 
   resumeAfterOrientation() {
@@ -263,18 +264,12 @@ class AsaichiGame {
   }
 
   openTutorial() {
-    this.clearInputState();
-    const fromTitle = this.state === 'TITLE';
-    const startButton = document.getElementById('btn-tutorial-start');
-    const backButton = document.getElementById('btn-tutorial-back');
-    if (startButton) startButton.textContent = fromTitle ? '説明を閉じて出撃するニャ！（START）' : 'ゲームに戻る';
-    if (backButton) backButton.textContent = fromTitle ? '閉じる' : 'タイトルへ戻る';
-    document.getElementById('tutorial-overlay')?.classList.remove('hidden');
-    this.mobileUI?.syncVisibility();
+    this.tutorial?.open();
   }
 
   returnToTitle() {
     if (this.state !== 'PLAYING') return;
+    this.tutorial?.close(false);
     this.runId++;
     this.resultFinalizedForRun = false;
     this.state = 'TITLE';
@@ -497,6 +492,7 @@ class AsaichiGame {
   // 入力・表示・描画ループを責務別の登録処理へ分ける
   initEvents() {
     this.mobileUI = new MobileUI(this);
+    this.tutorial = new TutorialGuide(this);
     this.peaceScene = new PeaceScene(this);
     this.initKeyboardEvents();
     this.initPresentationEvents();
@@ -507,14 +503,8 @@ class AsaichiGame {
 
   initKeyboardEvents() {
     window.addEventListener('keydown', (e) => {
-      if (e.code === 'Escape') {
-        const tutorial = document.getElementById('tutorial-overlay');
-        if (tutorial && !tutorial.classList.contains('hidden')) {
-          tutorial.classList.add('hidden');
-          this.clearInputState();
-          return;
-        }
-      }
+      // dialogのEscape・ページ送り・フォーカス操作をゲームへ流さない。
+      if (this.tutorial?.isOpen) return;
       const targetIsControl = e.target instanceof Element && !!e.target.closest('button, a, input, textarea, select, [contenteditable="true"]');
       if (targetIsControl) return;
       if (this.state === 'PLAYING' && this.isGameInputBlocked()) return;
@@ -538,7 +528,7 @@ class AsaichiGame {
       if (this.state === 'TITLE') {
         if (e.code === 'Space' || e.code === 'Enter') {
           e.preventDefault();
-          this.startGame();
+          if (!e.repeat) this.openTutorial();
         }
       } else if (this.state === 'RESULT') {
         if (e.code === 'Space' || e.code === 'Enter') {
@@ -578,7 +568,7 @@ class AsaichiGame {
     // UIボタン＆タイトル画面タップ
     document.getElementById('btn-quick-start')?.addEventListener('click', (e) => {
       e.stopPropagation();
-      this.startGame();
+      this.openTutorial();
     });
     document.getElementById('orientation-resume-btn')?.addEventListener('click', (e) => {
       e.stopPropagation();
@@ -589,16 +579,6 @@ class AsaichiGame {
     });
     document.getElementById('help-btn')?.addEventListener('click', () => {
       this.openTutorial();
-    });
-    document.getElementById('btn-tutorial-start')?.addEventListener('click', () => {
-      document.getElementById('tutorial-overlay').classList.add('hidden');
-      if (this.state === 'TITLE') {
-        this.startGame();
-      }
-    });
-    document.getElementById('btn-tutorial-back')?.addEventListener('click', () => {
-      document.getElementById('tutorial-overlay').classList.add('hidden');
-      if (this.state === 'PLAYING') this.returnToTitle();
     });
     document.getElementById('restart-btn')?.addEventListener('click', (e) => {
       e.stopPropagation();

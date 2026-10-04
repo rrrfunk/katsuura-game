@@ -880,73 +880,6 @@ body {
   transform: translateY(-2px);
 }
 
-/* チュートリアル画面 */
-.tutorial-card {
-  max-width: 680px;
-  padding: 16px 22px;
-}
-
-.tutorial-title {
-  color: #38bdf8;
-  font-size: 18px;
-  margin-bottom: 12px;
-  border-bottom: 2px solid #334155;
-  padding-bottom: 6px;
-}
-
-.tutorial-grid {
-  display: grid;
-  grid-template-columns: 1fr 1fr;
-  gap: 10px;
-  margin-bottom: 12px;
-}
-
-.tuto-item {
-  background: #1e293b;
-  border: 1px solid #334155;
-  border-radius: 6px;
-  padding: 8px 10px;
-  text-align: left;
-}
-
-.tuto-item.highlight {
-  border-color: #f43f5e;
-  background: #271b2d;
-}
-
-.tuto-icon {
-  font-size: 20px;
-  margin-bottom: 2px;
-}
-
-.tuto-header {
-  font-size: 12px;
-  font-weight: 900;
-  color: #fbbf24;
-  margin-bottom: 4px;
-}
-
-.tuto-item p {
-  font-size: 10.5px;
-  line-height: 1.45;
-  color: #cbd5e1;
-}
-
-.tuto-item strong {
-  color: #ffffff;
-}
-
-.tutorial-summary-banner {
-  background: #0f172a;
-  border: 1px solid #eab308;
-  border-radius: 6px;
-  padding: 6px 12px;
-  font-size: 11px;
-  color: #e2e8f0;
-  margin-bottom: 14px;
-  line-height: 1.4;
-}
-
 /* ========================================================
    ダダサバイバー風HUD ＆ レベルアップ選択UI
    ======================================================== */
@@ -1156,7 +1089,6 @@ body {
 }
 .orientation-card .orientation-note { color: #cbd5e1; font-size: 14px; }
 
-#tutorial-overlay .overlay-card { max-height: calc(100% - 24px); overflow-y: auto; overscroll-behavior: contain; touch-action: pan-y pinch-zoom; }
 #tutorial-overlay p, #tutorial-overlay h2, #result-overlay p { user-select: text; -webkit-user-select: text; }
 
 button:focus-visible, [tabindex]:focus-visible { outline: 3px solid #fff; outline-offset: 3px; }
