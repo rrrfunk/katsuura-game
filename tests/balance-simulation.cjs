@@ -16,7 +16,7 @@ const c = vm.createContext({ console, Math: math, performance, Image: class {},
   navigator: { maxTouchPoints: 0 }, document: { hidden: false, body: node(), getElementById(id) { if(!nodes.has(id)) nodes.set(id,node());return nodes.get(id); } },
   SoundSystem: class { constructor() { return new Proxy({}, {get:()=>()=>{}}); } },
   setTimeout:()=>1, clearTimeout() {}, requestAnimationFrame() {} });
-for(const file of ['balance.js','constants.js','enemy-tactics.js','game.js']) vm.runInContext(fs.readFileSync(path.join(root,'js',file),'utf8'),c);
+for(const file of ['balance.js','constants.js','enemy-tactics.js','kimie.js','game.js']) vm.runInContext(fs.readFileSync(path.join(root,'js',file),'utf8'),c);
 vm.runInContext('AsaichiGame.prototype.initEvents=function(){};AsaichiGame.prototype.loadAssets=function(){this.assetsLoaded=true};this.Game=AsaichiGame;',c);
 function clearPath(g,a,b) {
   const n=Math.ceil(Math.hypot(b.x-a.x,b.y-a.y)/18);

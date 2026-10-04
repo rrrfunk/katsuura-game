@@ -95,10 +95,13 @@ class MobileUI {
     document.body.classList.toggle('play-controls-visible', visible);
     this.elements['skip-peace'].hidden = !visible || g.firstYankeeEventDone || g.survivalTime >= 15 || g.isVictoryClear;
     this.elements['mobile-hud'].hidden = !g.isMobilePhoneActive || !visible;
+    const shrineView = g.player.y < 180;
+    this.elements['mobile-hud'].classList.toggle('shrine-view', shrineView);
     this.elements['mobile-controller-zone'].hidden = !visible;
     const banner = g.levelUpBanner;
     const notice = this.elements['mobile-notice'];
-    notice.hidden = !g.isMobilePhoneActive || !visible || !banner || banner.timer <= 0;
+    notice.hidden = !g.isMobilePhoneActive || !visible || !banner || banner.timer <= 0 ||
+      (shrineView && !g.firstYankeeEventDone);
     if (!notice.hidden) this.setText('mobile-notice', banner.title);
   }
 

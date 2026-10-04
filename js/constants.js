@@ -69,17 +69,7 @@ const LEVEL_EVOLUTION = {
     title: 'チビミケ参戦（子猫 LV.1）！',
     sub: '可愛い子猫1号が追従！チビ爪撃で援護攻撃！',
     apply: (game) => {
-      if (game.kittens.length < 1) {
-        game.kittens.push({
-          id: 1,
-          name: 'チビミケ１号',
-          type: 'calico',
-          trailIndex: 7,
-          attackTimer: 0,
-          scale: 0.65,
-          facing: 1
-        });
-      }
+      game.addKitten({ id: 1, name: 'チビミケ1号', type: 'calico', attackTimer: 0 });
     }
   },
   4: {
@@ -100,17 +90,7 @@ const LEVEL_EVOLUTION = {
     title: '子猫増員・ツインキャット（子猫 LV.2）！',
     sub: 'チビミケ２号が合流！２匹でチビ爪＆ミニカツオ援護！',
     apply: (game) => {
-      if (game.kittens.length < 2) {
-        game.kittens.push({
-          id: 2,
-          name: 'チビミケ２号',
-          type: 'white',
-          trailIndex: 14,
-          attackTimer: 0.4,
-          scale: 0.65,
-          facing: 1
-        });
-      }
+      game.addKitten({ id: 2, name: 'チビミケ2号', type: 'white', attackTimer: 0.4 });
     }
   },
   7: {
@@ -131,17 +111,7 @@ const LEVEL_EVOLUTION = {
     title: '子猫大行進・トリプルキャット（子猫 LV.3）！',
     sub: 'チビミケ３号（クロ猫）が合流！３匹で強力サポート！',
     apply: (game) => {
-      if (game.kittens.length < 3) {
-        game.kittens.push({
-          id: 3,
-          name: 'チビミケ３号',
-          type: 'black',
-          trailIndex: 21,
-          attackTimer: 0.2,
-          scale: 0.65,
-          facing: 1
-        });
-      }
+      game.addKitten({ id: 3, name: 'チビミケ3号', type: 'black', attackTimer: 0.2 });
     }
   },
   10: {

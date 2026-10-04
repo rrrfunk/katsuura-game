@@ -19,6 +19,7 @@ const gameContext = vm.createContext({
 });
 vm.runInContext(fs.readFileSync(path.join(root, 'js/balance.js'), 'utf8'), gameContext);
 vm.runInContext(fs.readFileSync(path.join(root, 'js/enemy-tactics.js'), 'utf8'), gameContext);
+vm.runInContext(fs.readFileSync(path.join(root, 'js/kimie.js'), 'utf8'), gameContext);
 vm.runInContext(`${fs.readFileSync(path.join(root, 'js/game.js'), 'utf8')}\nglobalThis.__AsaichiGame = AsaichiGame;`, gameContext);
 const AsaichiGame = gameContext.__AsaichiGame;
 
@@ -412,7 +413,7 @@ assert.ok(travel.every((distance) => Math.abs(distance - 120) < 0.01), `frame-ra
   const imageNames = [
     'mapHorizontal', 'mapPeace', 'mapForeground', 'mapForegroundPeace', 'splashYankee',
     'splashKyon', 'cutinCat', 'cutinYankee', 'cutinKyon', 'cutinTandem', 'cutinMikoshi',
-    'cutinNoraneko', 'tandemBike', 'mikoshi', 'cat', 'allyCat', 'yankees', 'items'
+    'cutinNoraneko', 'tandemBike', 'mikoshi', 'cat', 'kimie', 'allyCat', 'yankees', 'items'
   ];
   const game = makeGame({ images: Object.fromEntries(imageNames.map((name) => [name, new FakeImage()])) });
   game.loadAssets();

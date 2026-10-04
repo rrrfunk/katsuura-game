@@ -66,7 +66,8 @@ class PeaceScene {
     ctx.fillStyle = '#37271e';
     ctx.font = `bold ${16 * scale}px sans-serif`;
     ctx.textAlign = 'center'; ctx.textBaseline = 'middle';
-    stall.lines.forEach((line, i) => ctx.fillText(line, x + w / 2, y + (19 + i * 22) * scale));
+    stall.lines.forEach((line, i) => ctx.fillText(g.player.character === 'kimie' ? line.replaceAll('ミケ', 'きみえ') : line,
+      x + w / 2, y + (19 + i * 22) * scale));
     ctx.restore();
   }
 }

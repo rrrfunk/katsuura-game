@@ -41,6 +41,7 @@ class AsaichiGame {
       tandemBike: new Image(),
       mikoshi: new Image(),
       cat: new Image(),
+      kimie: new Image(),
       allyCat: new Image(),
       yankees: new Image(),
       items: new Image()
@@ -92,6 +93,8 @@ class AsaichiGame {
       isMoving: false,
       dir: 'down',
       facing: 1, // 1: 右向き, -1: 左向き
+      character: 'mike',
+      aimAngle: Math.PI / 2,
       animTimer: 0,
       animFrame: 0,
       meowAnimTimer: 0,
@@ -324,6 +327,7 @@ class AsaichiGame {
       { img: this.images.mikoshi,            src: `assets/katsuura_mikoshi.webp?v=${cacheKey}` },
       { img: this.images.allyCat,            src: 'assets/nora_run.webp?v=20260930_rush_v7' },
       { img: this.images.cat,                src: `assets/cat_sprites.webp?v=${cacheKey}` },
+      { img: this.images.kimie,              src: 'assets/kimie_sprites.webp?v=20261004_kimie_v17' },
       { img: this.images.yankees,            src: `assets/yankee_sprites.webp?v=${cacheKey}` },
       { img: this.images.items,              src: `assets/items.webp?v=${cacheKey}` }
     ];
@@ -436,6 +440,8 @@ class AsaichiGame {
 
   // 指定座標がユーザー指定の通行可能ゾーン（赤目印エリア）に入っているか判定
   isPointWalkable(x, y) {
+    // 隠しアイテムへ登る階段。通常アイテムの抽選ゾーンには加えない。
+    if (Kimie.isOnStairs(x, y)) return true;
     for (let i = 0; i < this.walkableZones.length; i++) {
       const z = this.walkableZones[i];
       if (x >= z.x && x <= z.x + z.w && y >= z.y && y <= z.y + z.h) {
@@ -969,6 +975,7 @@ class AsaichiGame {
     this.kittens = [];
     this.lightningTimer = 0;
     this.levelUpBanner = null;
+    Kimie.reset(this);
 
     // クリア目標時間と最終決戦フラグ（クリア条件可視化＆大乱闘ラストボス）
     this.targetClearTime = 120; // 120秒（2分）でクリア！
@@ -1276,9 +1283,11 @@ class AsaichiGame {
 
     const pickupFromX = this.player.x, pickupFromY = this.player.y;
     this.updatePlayer(dt);
+    Kimie.updateDiscovery(this, dt, pickupFromX, pickupFromY);
     this.peaceScene?.update(dt);
     this.updateKittens(dt);
     this.updateSkills(dt);
+    Kimie.updateAttack(this, dt);
     this.updateTandemRushes(dt);
     this.updateMikoshiRushes(dt);
     this.updateLightning(dt);
@@ -1407,6 +1416,7 @@ class AsaichiGame {
     if (isMoving) {
       const nx = moveX / inputLen;
       const ny = moveY / inputLen;
+      p.aimAngle = Math.atan2(ny, nx);
 
       if (Math.abs(nx) >= Math.abs(ny) * 0.7) {
         p.dir = nx > 0 ? 'right' : 'left';
@@ -1450,8 +1460,8 @@ class AsaichiGame {
 
     // 子猫追従用の移動履歴記録
     if (!p.trail) p.trail = [];
-    p.trail.unshift({ x: p.x, y: p.y, facing: p.facing, dir: p.dir, isMoving: p.isMoving });
-    if (p.trail.length > 50) p.trail.pop();
+    p.trail.unshift({ x: p.x, y: p.y, facing: p.facing, dir: p.dir, aimAngle: p.aimAngle, isMoving: p.isMoving });
+    if (p.trail.length > 64) p.trail.pop();
   }
 
   // なめらかな壁ずり（Wall Slide）衝突判定移動システム
@@ -1600,10 +1610,10 @@ class AsaichiGame {
 
     // 親ミケのひっかきモーション発動！（前足を突き出して鋭い爪を光らせる）
     p.scratchAnimTimer = 0.22;
-    if (Math.cos(baseAngle) > 0.2) {
+    if (p.character !== 'kimie' && Math.cos(baseAngle) > 0.2) {
       p.facing = 1;
       p.dir = 'right';
-    } else if (Math.cos(baseAngle) < -0.2) {
+    } else if (p.character !== 'kimie' && Math.cos(baseAngle) < -0.2) {
       p.facing = -1;
       p.dir = 'left';
     }
@@ -1726,6 +1736,19 @@ class AsaichiGame {
   // ========================================================
   // 子猫（チビミケ1号・2号）の追従・援護システム
   // ========================================================
+  addKitten(spec) {
+    if (this.kittens.some(kit => kit.id === spec.id)) return;
+    const p = this.player;
+    const angle = p.aimAngle ?? Math.PI / 2;
+    const offset = spec.isCompanion ? Kimie.companionOffset(angle) : { x: -Math.cos(angle) * 30, y: -Math.sin(angle) * 30 };
+    const x = p.x + offset.x, y = p.y + offset.y;
+    const kit = { scale: 0.65, facing: p.facing, dir: p.dir, ...spec,
+      x: this.isPointWalkable(x, y) ? x : p.x,
+      y: this.isPointWalkable(x, y) ? y : p.y };
+    if (kit.isCompanion) this.kittens.unshift(kit);
+    else this.kittens.push(kit);
+  }
+
   updateKittens(dt) {
     if (!this.kittens || this.kittens.length === 0) return;
     const p = this.player;
@@ -1733,19 +1756,22 @@ class AsaichiGame {
 
     this.kittens.forEach((kit, idx) => {
       // 履歴インデックス（親猫の足跡をたどる）
-      const tIdx = Math.min(p.trail.length - 1, (idx + 1) * 12);
+      const tIdx = Math.min(p.trail.length - 1, kit.isCompanion ? 4 : (idx + 1) * 12);
       const targetPos = p.trail[tIdx];
 
       if (targetPos) {
-        // 1号は左後ろ、2号は右後ろにオフセットをつけて親猫と重ならず並走！
-        const offsetX = (idx === 0 ? -22 : 22);
-        const offsetY = (idx === 0 ? 6 : -6);
-        const tx = targetPos.x + offsetX;
-        const ty = targetPos.y + offsetY;
+        // 停止時も全匹が見えるよう、1号・2号・3号の待機位置を分ける。
+        const angle = targetPos.aimAngle ?? Math.PI / 2;
+        const companionOffset = kit.isCompanion ? Kimie.companionOffset(angle) : null;
+        const offsetX = companionOffset ? companionOffset.x : (kit.id === 3 ? 0 : kit.id === 1 ? -22 : 22);
+        const offsetY = companionOffset ? companionOffset.y : (kit.id === 3 ? 32 : kit.id === 1 ? 6 : -6);
+        let tx = targetPos.x + offsetX, ty = targetPos.y + offsetY;
+        if (!this.isPointWalkable(tx, ty)) { tx = targetPos.x; ty = targetPos.y; }
 
         if (kit.x === undefined) { kit.x = tx; kit.y = ty; }
-        kit.x += (tx - kit.x) * 0.22;
-        kit.y += (ty - kit.y) * 0.22;
+        const follow = 1 - Math.pow(0.78, dt * 60);
+        kit.x += (tx - kit.x) * follow;
+        kit.y += (ty - kit.y) * follow;
         // 攻撃中でなければ親の向きに追従
         if (!kit.scratchAnimTimer || kit.scratchAnimTimer <= 0) {
           kit.facing = targetPos.facing || 1;
@@ -3025,6 +3051,7 @@ class AsaichiGame {
 
     // B. ドロップアイテム
     this.renderDropItems(ctx);
+    Kimie.drawDiscovery(this, ctx);
 
     // C. Yソート立体描画（敵、プレイヤー、ブーメラン）
     this.renderYSortedEntities(ctx);
@@ -3043,6 +3070,8 @@ class AsaichiGame {
 
     // F. 手前オブジェクト前景オーバーレイ（手前の人・パラソル・屋台の後ろにミケや敵が回り込む立体描写！）
     this.renderForeground(ctx);
+    Kimie.drawShrineGate(this, ctx);
+    Kimie.drawNotice(this, ctx);
 
     ctx.restore();
 
@@ -4260,7 +4289,9 @@ class AsaichiGame {
     }
 
     // ネコスプライト描画
-    if (this.images.cat && this.images.cat.complete && this.images.cat.naturalWidth > 0) {
+    if (p.character === 'kimie' && this.images.kimie?.naturalWidth > 0) {
+      Kimie.drawBody(this, ctx);
+    } else if (this.images.cat && this.images.cat.complete && this.images.cat.naturalWidth > 0) {
       ctx.imageSmoothingEnabled = false;
       const cell = SPRITES.cat.cell; // 256
       let row = 0;
@@ -4385,8 +4416,9 @@ class AsaichiGame {
       ctx.textAlign = 'center'; ctx.textBaseline = 'bottom';
       ctx.strokeStyle = '#372713'; ctx.lineWidth = 2;
       ctx.fillStyle = '#fff4b0';
-      ctx.strokeText('LVUP!', 0, -52 - progress * 6);
-      ctx.fillText('LVUP!', 0, -52 - progress * 6);
+      const labelY = (p.character === 'kimie' ? -76 : -52) - progress * 6;
+      ctx.strokeText('LVUP!', 0, labelY);
+      ctx.fillText('LVUP!', 0, labelY);
     }
     ctx.restore();
   }

@@ -44,6 +44,8 @@ body.mobile-landscape #mobile-hud {
 .mobile-clock { position: absolute; left: 50%; transform: translateX(-50%); display: flex; align-items: center; gap: 6px; padding: 4px 8px; min-height: 30px; background: #0b1522de; border-radius: 6px; }
 .mobile-clock span { display: block; font-size: 11px; line-height: 16px; color: #e2e8f0; white-space: nowrap; }
 .mobile-clock strong { display: block; font-size: 16px; line-height: 20px; white-space: nowrap; }
+/* 神社の最上段では中央のキャラを隠さず、一時停止の隣へ寄せる。 */
+#mobile-hud.shrine-view .mobile-clock { left: auto; right: 60px; transform: none; }
 #mobile-pause { width: 48px; height: 48px; pointer-events: auto; background: #0b1522ec; border: 1px solid #94a3b8; border-radius: 10px; color: #fff; font-size: 24px; cursor: pointer; }
 body.mobile-landscape #mobile-notice {
   display: block; position: absolute; z-index: 34; top: calc(env(safe-area-inset-top, 0px) + 64px); left: 50%; transform: translateX(-50%);
