@@ -2,7 +2,7 @@
 const Kimie = {
   shrine: Object.freeze({ x: 688, y: 74, radius: 22 }),
   stairs: Object.freeze({ x: 622, y: 90, w: 130, h: 280 }),
-  slash: Object.freeze({ radius: 90, halfAngle: Math.PI / 3, interval: 0.72, duration: 0.24 }),
+  slash: Object.freeze({ radius: 90, halfAngle: Math.PI / 3, interval: 0.36, duration: 0.12 }),
 
   reset(game) {
     Object.assign(game.player, {
