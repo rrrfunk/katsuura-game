@@ -83,35 +83,12 @@ const EnemyTactics = {
 
   draw(game, ctx) {
     for (const e of game.enemies) {
-      if (!this.isAttacking(e)) continue;
+      if (e.attackPhase !== 'WINDUP') continue;
+      // 地面を覆わず、構えている敵の頭上だけに予告を出す。
       ctx.save();
-      ctx.lineWidth = 2.5;
-      ctx.strokeStyle = '#fbbf24';
-      ctx.fillStyle = 'rgba(220,38,38,0.28)';
-      if (e.type === 'tonbi') {
-        ctx.beginPath();
-        ctx.arc(e.attackX, e.attackY, GAME_BALANCE.attacks.tonbi.radius, 0, Math.PI * 2);
-        ctx.fill(); ctx.stroke();
-        // 十字も重ね、色だけで危険を伝えない。
-        ctx.beginPath();
-        ctx.moveTo(e.attackX - 9, e.attackY - 9); ctx.lineTo(e.attackX + 9, e.attackY + 9);
-        ctx.moveTo(e.attackX + 9, e.attackY - 9); ctx.lineTo(e.attackX - 9, e.attackY + 9); ctx.stroke();
-      } else if (e.attackPhase === 'WINDUP') {
-        const cfg = GAME_BALANCE.attacks.skater;
-        const length = cfg.speed * cfg.duration;
-        ctx.translate(e.attackFromX, e.attackFromY);
-        ctx.rotate(Math.atan2(e.attackDy, e.attackDx));
-        ctx.fillRect(0, -32, length, 64);
-        ctx.strokeRect(0, -32, length, 64);
-        ctx.beginPath();
-        ctx.moveTo(length - 20, -10); ctx.lineTo(length - 8, 0); ctx.lineTo(length - 20, 10); ctx.stroke();
-      }
-      if (e.attackPhase === 'WINDUP') {
-        ctx.restore(); ctx.save();
-        ctx.font = 'bold 20px sans-serif'; ctx.textAlign = 'center';
-        ctx.strokeStyle = '#080c10'; ctx.lineWidth = 4; ctx.fillStyle = '#fbbf24';
-        ctx.strokeText('!', e.x, e.y - e.h - 6); ctx.fillText('!', e.x, e.y - e.h - 6);
-      }
+      ctx.font = 'bold 20px sans-serif'; ctx.textAlign = 'center';
+      ctx.strokeStyle = '#080c10'; ctx.lineWidth = 4; ctx.fillStyle = '#fbbf24';
+      ctx.strokeText('!', e.x, e.y - e.h - 6); ctx.fillText('!', e.x, e.y - e.h - 6);
       ctx.restore();
     }
   }
