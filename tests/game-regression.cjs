@@ -18,6 +18,7 @@ const gameContext = vm.createContext({
   LEVEL_EVOLUTION: [null, { apply() {} }]
 });
 vm.runInContext(fs.readFileSync(path.join(root, 'js/balance.js'), 'utf8'), gameContext);
+vm.runInContext(fs.readFileSync(path.join(root, 'js/enemy-tactics.js'), 'utf8'), gameContext);
 vm.runInContext(`${fs.readFileSync(path.join(root, 'js/game.js'), 'utf8')}\nglobalThis.__AsaichiGame = AsaichiGame;`, gameContext);
 const AsaichiGame = gameContext.__AsaichiGame;
 
@@ -50,6 +51,8 @@ function makeGame(overrides = {}) {
     addExp() {},
     isInsideForbiddenArea: () => false,
     worldW: 1376,
+    worldH: 768,
+    isPointWalkable: () => true,
     viewW: 880,
     viewH: 495,
     camera: { x: 0, y: 0 },
@@ -538,7 +541,7 @@ async function verifySharedBgmTransport() {
   assert.equal(frames.size, 4);
   assert.ok(ys.some((v, i) => i > 0 && v > ys[i - 1]));
   assert.ok(ys.some((v, i) => i > 0 && v < ys[i - 1]));
-  game.updateAllyCats(2.4);
+  game.updateAllyCats(2.8);
   assert.equal(game.allyCats.length, 0);
 }
 
@@ -569,6 +572,117 @@ async function verifySharedBgmTransport() {
   assert.equal(game.enemies.length, 0);
   game.finalBossPhase = false; game.survivalTime = 14; game.updateEnemyWaves(20);
   assert.equal(game.enemies.length, 0);
+}
+
+// アイテムは近くで待っても動かず、接触時だけ一度回収する。高速横断も拾える。
+{
+  let collected = 0;
+  const item = { type: 'warabi', x: 60, y: 0, life: 12, age: 0 };
+  const game = makeGame({ dropItems: [item], collectItem() { collected++; } });
+  for (let i = 0; i < 60; i++) game.updateDropItems(1 / 60);
+  assert.deepEqual([item.x, item.y, collected], [60, 0, 0]);
+  game.player.x = 30; game.updateDropItems(0.1);
+  assert.equal(collected, 0, '以前の回収半径45pxでは拾わない');
+  game.player.x = 40; game.updateDropItems(0.1); game.updateDropItems(0.1);
+  assert.equal(collected, 1);
+  game.dropItems = [{ type: 'coffee', x: 0, y: 0, life: 1 }];
+  game.player.x = 60; game.updateDropItems(0.08, -60, 0);
+  assert.equal(collected, 2, '高速で上を通った場合は取りこぼさない');
+  game.dropItems = [{ type: 'coffee', x: 60, y: 0, life: 0.01 }];
+  game.updateDropItems(0.02);
+  assert.equal(collected, 2, '期限切れのアイテムは発動しない');
+}
+
+// タンデムの進路はミケの左右の向き。細い一列と神輿の広い面で命中対象が違う。
+{
+  const hits = [];
+  const game = makeGame({ tandemRushes: [], mikoshiRushes: [], player: { x: 660, y: 610, facing: -1 },
+    sound: { playBicycleBell() {}, playMikoshiSound() {}, playTaiko() {}, playHit() {} },
+    damageEnemy(e) { hits.push(e.id); return true; } });
+  game.triggerTandemBikeRush();
+  assert.equal(game.tandemRushes[0].dir, -1);
+  assert.equal(game.tandemRushes[0].y, 610);
+  game.enemies = [{ id: 'lane', x: 660, y: 610 }, { id: 'wide', x: 660, y: 680 }];
+  game.tandemRushes[0].x = 660;
+  game.updateTandemRushes(0); game.updateTandemRushes(0);
+  assert.deepEqual(hits, ['lane']);
+  hits.length = 0;
+  game.triggerMikoshiRush(1);
+  Object.assign(game.mikoshiRushes[0], { x: 660, y: 610 });
+  game.updateMikoshiRushes(0); game.updateMikoshiRushes(0);
+  assert.deepEqual(hits, ['lane', 'wide']);
+  assert.ok(game.enemies.every(e => e.stunTimer >= 0.9));
+}
+
+// ノラはミケの近くを守り、離れた敵へ画面横断の攻撃をしない。
+{
+  const hits = [];
+  const game = makeGame({ allyCats: [], player: { x: 660, y: 610, facing: 1 },
+    enemies: [{ id: 'near', x: 660, y: 610 }, { id: 'far', x: 1060, y: 610 }],
+    damageEnemy(e) { hits.push(e.id); return true; } });
+  game.spawnAllyCat();
+  for (let i = 0; i < 90; i++) {
+    game.updateAllyCats(1 / 60);
+    assert.ok(Math.abs(game.allyCats[0].x - game.player.x) <= 145);
+  }
+  assert.ok(hits.includes('near'));
+  assert.ok(!hits.includes('far'));
+}
+
+// 大群12秒→回収6秒。回収中は既存の敵を残し、新規の出現を止める。
+{
+  let spawned = 0, items = 0;
+  const game = makeGame({ survivalTime: 56.9, enemySpawnTimer: 0, hordeTimer: 0, bossSpawned1: true,
+    spawnEnemy() { spawned++; this.enemies.push({}); }, spawnRandomMarketItem() { items++; } });
+  assert.equal(game.getWavePhase(), 'SURGE');
+  game.survivalTime = 57; game.enemies = [{}]; game.updateEnemyWaves(1);
+  assert.deepEqual([game.wavePhase, spawned, items, game.enemies.length], ['REST', 0, 1, 1]);
+  game.updateEnemyWaves(5);
+  assert.deepEqual([spawned, items, game.enemySpawnTimer, game.hordeTimer], [0, 1, 0, 0]);
+  game.survivalTime = 63; game.updateEnemyWaves(0.1);
+  assert.equal(game.wavePhase, 'SURGE'); assert.equal(spawned, 0);
+  game.updateEnemyWaves(0.5); assert.ok(spawned > 0);
+}
+
+// 予告中は当たらず、照準は固定。横へよければ突進と急降下を避けられる。
+for (const type of ['skater', 'tonbi']) {
+  const game = makeGame({ player: { x: 660, y: 610, hp: 100, invincibleTimer: 0 },
+    sound: { playDamage() {} }, addDamageNumber() {}, camera: { x: 220, y: 273 } });
+  const enemy = game.spawnEnemy(type, 470, 610); enemy.attackCooldown = 0;
+  game.updateEnemies(1 / 60);
+  assert.equal(enemy.attackPhase, 'WINDUP');
+  assert.equal(enemy.attackY, 610);
+  game.player.y = 705;
+  for (let i = 0; i < 90; i++) game.updateEnemies(1 / 60);
+  assert.equal(enemy.attackY, 610, '予告後に照準を追従させない');
+  assert.equal(game.player.hp, 100);
+  assert.equal(enemy.attackPhase, 'RECOVER');
+}
+
+// 予告を無視したら命中し、被弾で突進が中断されたら予告も消える。
+for (const type of ['skater', 'tonbi']) {
+  const game = makeGame({ player: { x: 660, y: 610, hp: 100, invincibleTimer: 0 },
+    sound: { playDamage() {} }, addDamageNumber() {}, camera: { x: 220, y: 273 } });
+  const enemy = game.spawnEnemy(type, 470, 610); enemy.attackCooldown = 0;
+  for (let i = 0; i < 90; i++) {
+    game.player.invincibleTimer = Math.max(0, game.player.invincibleTimer - 1 / 60);
+    game.updateEnemies(1 / 60);
+  }
+  assert.ok(game.player.hp < 100);
+  enemy.attackPhase = 'WINDUP'; enemy.hp = 100;
+  game.damageEnemy(enemy, 1);
+  assert.equal(enemy.attackPhase, 'RECOVER');
+}
+
+// 同時予告には上限があり、一時停止では予告時間も進まない。
+{
+  const game = makeGame({ player: { x: 660, y: 610, hp: 100, invincibleTimer: 5 }, camera: { x: 220, y: 273 } });
+  for (let i = 0; i < 8; i++) game.spawnEnemy('skater', 460 + i * 8, 580).attackCooldown = 0;
+  game.updateEnemies(1 / 60);
+  assert.equal(game.enemies.filter(e => e.attackPhase === 'WINDUP').length, 3);
+  const timer = game.enemies[0].attackTimer;
+  game.mobileUI = { isPaused: true }; game.update(1);
+  assert.equal(game.enemies[0].attackTimer, timer);
 }
 
 // 会話は接近時1件だけ。居座っても連発せず、戦闘開始・新規プレイで解除される。
@@ -808,7 +922,7 @@ function makeJoystickGame(size = 104) {
 }
 
 verifySharedBgmTransport().then(() => {
-  console.log('PDCA regression checks passed: 37 + shared BGM transport/resume');
+  console.log('Game regression checks passed: input, pickups, helper roles, telegraphs, wave pacing, shared BGM');
 }).catch((error) => {
   console.error(error);
   process.exitCode = 1;

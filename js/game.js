@@ -116,7 +116,6 @@ class AsaichiGame {
       meow:     { level: 0, timer: 0 },
       shichirin:{ level: 0, timer: 0 },
       boots:    { level: 0 },
-      magnet:   { level: 0 },
       spice:    { level: 0 }
     };
 
@@ -903,6 +902,8 @@ class AsaichiGame {
     this.lastEnemyDropSec = null;
     this.hordeTimer = 0;
     this.enemySpawnTimer = 0;
+    this.wavePhase = 'NORMAL';
+    this.activeEnemyAttacks = 0;
     this.lightningFlashTimer = 0;
     this.lightningBolts = [];
 
@@ -957,7 +958,6 @@ class AsaichiGame {
       meow:     { level: 0, timer: 0 },
       shichirin:{ level: 0, timer: 0 },
       boots:    { level: 0 },
-      magnet:   { level: 0 },
       spice:    { level: 0 },
       lightning: null
     };
@@ -1274,6 +1274,7 @@ class AsaichiGame {
       this.screenShake = Math.max(0, this.screenShake - dt * 2.5);
     }
 
+    const pickupFromX = this.player.x, pickupFromY = this.player.y;
     this.updatePlayer(dt);
     this.peaceScene?.update(dt);
     this.updateKittens(dt);
@@ -1285,7 +1286,7 @@ class AsaichiGame {
     this.updateEnemyWaves(dt);
     this.updateEnemies(dt);
     this.updateAllyCats(dt);
-    this.updateDropItems(dt);
+    this.updateDropItems(dt, pickupFromX, pickupFromY);
     this.updateParticles(dt);
     this.updateDamageNumbers(dt);
     this.updateComicPopups(dt);
@@ -1894,15 +1895,15 @@ class AsaichiGame {
   // ========================================================
   triggerTandemBikeRush() {
     if (this.tandemRushes.length >= GAME_BALANCE.maxTandems) this.tandemRushes.shift();
-    const dir = Math.random() < 0.5 ? 1 : -1; // 1: 左から右, -1: 右から左
+    const dir = this.player.facing === -1 ? -1 : 1;
     const startX = dir === 1 ? this.camera.x - 220 : this.camera.x + this.viewW + 220;
-    const y = Math.max(130, Math.min(this.worldH - 130, this.player.y + (Math.random() - 0.5) * 40));
+    const y = this.player.y;
 
     this.tandemRushes.push({
       x: startX,
       y: y,
       dir: dir,
-      speed: 480, // 速度を落としてしっかり視認できる爽快スピード！
+      speed: GAME_BALANCE.tandem.speed,
       w: 180,     // サイズを大きく！
       h: 107,
       hitEnemies: [],
@@ -1913,12 +1914,14 @@ class AsaichiGame {
     // ★自転車の澄んだ「チリリリーン♪」ベル効果音！
     this.sound.playBicycleBell();
     this.screenShake = 0.25;
+    this.addComicPopup(this.player.x, y - 45, dir === 1 ? 'タンデム →' : '← タンデム', '#38bdf8', 0.8);
   }
 
   updateTandemRushes(dt) {
     const enemySnapshot = this.enemies.slice();
     for (let i = this.tandemRushes.length - 1; i >= 0; i--) {
       const t = this.tandemRushes[i];
+      const oldX = t.x;
       t.x += t.dir * t.speed * dt;
       t.smokeTimer += dt;
       t.bellTimer = (t.bellTimer || 0) + dt;
@@ -1935,17 +1938,19 @@ class AsaichiGame {
         this.addParticle(t.x, t.y + 25, 'spark');
       }
 
-      // 敵との衝突判定（当たり判定を半径100pxに大幅拡大！通り道の敵をごっそり跳ね飛ばす）
+      // 細い横一列を切り開く。フレーム間を含む走行範囲で判定する。
       enemySnapshot.forEach(e => {
         if (t.hitEnemies.includes(e)) return;
-        const dist = Math.hypot(e.x - t.x, e.y - t.y);
-        if (dist < 100) {
-          if (!this.damageEnemy(e, 160, t.x - t.dir * 40, t.y)) return;
+        const cfg = GAME_BALANCE.tandem;
+        if (Math.abs(e.y - t.y) <= cfg.halfHeight && e.x >= Math.min(oldX, t.x) - cfg.halfWidth &&
+            e.x <= Math.max(oldX, t.x) + cfg.halfWidth) {
+          if (!this.damageEnemy(e, cfg.damage, t.x - t.dir * 40, t.y)) return;
           t.hitEnemies.push(e);
           // 特大ダメージ！
           this.sound.playHit();
           e.knockbackVx = t.dir * 480;
-          e.knockbackVy = -180;
+          e.knockbackVy = e.y >= t.y ? 120 : -120;
+          e.stunTimer = 0.45;
           for (let s = 0; s < 6; s++) this.addParticle(e.x, e.y, 'spark');
           for (let s = 0; s < 4; s++) this.addParticle(e.x, e.y, 'confetti');
         }
@@ -1978,7 +1983,7 @@ class AsaichiGame {
         x: startX,
         y: y,
         dir: dir,
-        speed: 440 + Math.random() * 40,
+        speed: GAME_BALANCE.mikoshi.speed,
         w: 240,     // 黄金神輿と担ぎ手たちの堂々たるワイドサイズ！
         h: 134,
         hitEnemies: [],
@@ -2006,6 +2011,7 @@ class AsaichiGame {
     for (let i = this.mikoshiRushes.length - 1; i >= 0; i--) {
       const t = this.mikoshiRushes[i];
       if (t.delay > 0) { t.delay -= dt; continue; }
+      const oldX = t.x;
       t.x += t.dir * t.speed * dt;
       t.smokeTimer += dt;
       t.bobTimer += dt * 14; // リズミカルな上下「ヨイショ！」の波
@@ -2027,17 +2033,19 @@ class AsaichiGame {
         this.sound.playTaiko();
       }
 
-      // 敵との豪快な衝突判定（当たり判定半径125px！）
+      // 神輿は上下に広い面を押し返し、敵が戻るまでの隙を作る。
       enemySnapshot.forEach(e => {
         if (t.hitEnemies.includes(e)) return;
-        const dist = Math.hypot(e.x - t.x, e.y - t.y);
-        if (dist < 125) {
-          if (!this.damageEnemy(e, 220, t.x - t.dir * 60, t.y)) return;
+        const cfg = GAME_BALANCE.mikoshi;
+        if (Math.abs(e.y - t.y) <= cfg.halfHeight && e.x >= Math.min(oldX, t.x) - cfg.halfWidth &&
+            e.x <= Math.max(oldX, t.x) + cfg.halfWidth) {
+          if (!this.damageEnemy(e, cfg.damage, t.x - t.dir * 60, t.y)) return;
           t.hitEnemies.push(e);
           // 神輿の一撃必殺超ド級ダメージ！
           this.sound.playHit();
           e.knockbackVx = t.dir * 520;
-          e.knockbackVy = -240; // 上空へ豪快に打ち上げ！
+          e.knockbackVy = e.y >= t.y ? 160 : -160;
+          e.stunTimer = 0.9;
           for (let s = 0; s < 8; s++) this.addParticle(e.x, e.y, 'spark');
           for (let s = 0; s < 6; s++) this.addParticle(e.x, e.y, 'confetti');
         }
@@ -2238,6 +2246,12 @@ class AsaichiGame {
   // ========================================================
   // 6. 敵ウェーブ・スポーンマネージャー（段階的プログレッシブ仕様）
   // ========================================================
+  getWavePhase() {
+    const cfg = GAME_BALANCE.tempo;
+    if (this.finalBossPhase || this.isVictoryClear || this.survivalTime < cfg.start) return 'NORMAL';
+    return (this.survivalTime - cfg.start) % (cfg.surge + cfg.rest) < cfg.surge ? 'SURGE' : 'REST';
+  }
+
   updateEnemyWaves(dt) {
     // ★ユーザー要望：ラスボス登場中および完全勝利後は、雑魚敵スポーンを完全停止！
     if (this.finalBossPhase || this.isVictoryClear) return;
@@ -2248,6 +2262,23 @@ class AsaichiGame {
 
     // ★ユーザー要望：15.0秒未満は敵スポーン完全停止（平和な勝浦朝市散策タイムを満喫！）
     if (time < 15.0) return;
+
+    const phase = this.getWavePhase();
+    if (phase !== this.wavePhase) {
+      this.wavePhase = phase;
+      if (phase === 'REST') {
+        this.spawnRandomMarketItem();
+        this.addComicPopup(this.player.x, this.player.y - 55, 'ひと息！', '#38bdf8', 0.9);
+      } else if (phase === 'SURGE') {
+        this.addComicPopup(this.player.x, this.player.y - 55, '大群接近！', '#fbbf24', 0.9);
+      }
+    }
+    if (phase === 'REST') {
+      // 休止中の発生時間を貯めず、再開直後のまとめ湧きを防ぐ。
+      this.enemySpawnTimer = 0;
+      this.hordeTimer = 0;
+      return;
+    }
 
     const wave = GAME_BALANCE.waves.reduce((current, next) => time >= next.from ? next : current);
     const { interval: spawnInterval, cap: maxEnemies, batch: spawnBatch } = wave;
@@ -2280,8 +2311,9 @@ class AsaichiGame {
           else this.spawnEnemy('tonbi');
         } else {
           // 後半：大群サバイバル
-          if (rand < 0.35) this.spawnEnemy('kyon');
-          else if (rand < 0.60) this.spawnEnemy('tonbi');
+          if (rand < 0.30) this.spawnEnemy('kyon');
+          else if (rand < 0.48) this.spawnEnemy('tonbi');
+          else if (rand < 0.62) this.spawnEnemy('skater');
           else if (rand < 0.82) this.spawnEnemy('tokko');
           else this.spawnEnemy('tsuppari');
         }
@@ -2377,6 +2409,7 @@ class AsaichiGame {
       stunTimer: 0,
       bonitoHitTimer: 0,
       state: 'CHASE',
+      attackCooldown: 1.2 + Math.random() * 1.2,
       vx: 0, vy: 0
     };
     this.enemies.push(enemyObj);
@@ -2428,6 +2461,7 @@ class AsaichiGame {
   // 敵の行動・AI
   updateEnemies(dt) {
     const p = this.player;
+    this.activeEnemyAttacks = this.enemies.reduce((count, enemy) => count + Number(EnemyTactics.isAttacking(enemy)), 0);
 
     // NPCビビり演出クールダウン（敵ループの外で1回だけ減算！）
     for (let s of this.npcSpots) {
@@ -2465,6 +2499,7 @@ class AsaichiGame {
       // スタン中
       if (e.stunTimer > 0) {
         e.stunTimer -= dt;
+        if (EnemyTactics.isAttacking(e)) EnemyTactics.recover(this, e);
         continue;
       }
 
@@ -2474,22 +2509,22 @@ class AsaichiGame {
       const dx = (p.x - e.x) / d;
       const dy = (p.y - e.y) / d;
 
-      e.dir = dx > 0 ? 'right' : 'left';
-      e.animTimer += dt * (e.speed * 3);
-
-      // 移動（トンビは飛行、地上敵は moveEnemy でスムーズ進入＆ゾーン内制御）
+      const oldX = e.x, oldY = e.y;
+      const wasRushing = e.attackPhase === 'RUSH';
       const frameScale = dt * 60;
-      const vx = dx * e.speed * frameScale;
-      const vy = dy * e.speed * frameScale;
-      if (e.isFlying) {
-        e.x += vx;
-        e.y += vy;
-      } else {
-        this.moveEnemy(e, vx, vy);
+      if (!EnemyTactics.update(this, e, dt)) {
+        e.dir = dx > 0 ? 'right' : 'left';
+        e.animTimer += dt * (e.speed * 3);
+        const tempoSpeed = this.wavePhase === 'REST' && !e.isBoss ? GAME_BALANCE.tempo.restSpeed : 1;
+        const vx = dx * e.speed * frameScale * tempoSpeed;
+        const vy = dy * e.speed * frameScale * tempoSpeed;
+        if (e.isFlying) { e.x += vx; e.y += vy; }
+        else this.moveEnemy(e, vx, vy);
       }
 
       // 敵同士の重なり回避（分離：二乗距離で超高速計算＆余計なループ判定を排除！）
       for (let j = 0; j < Math.min(this.enemies.length, 8); j++) {
+        if (EnemyTactics.isAttacking(e)) break; // 予告した進路を押し出さない。
         const other = this.enemies[j];
         if (other !== e) {
           const sepDx = e.x - other.x;
@@ -2522,7 +2557,12 @@ class AsaichiGame {
       }
 
       // プレイヤーへの接触ダメージ判定
-      if (dist < 32 && p.invincibleTimer <= 0) {
+      const hitRadius = e.type === 'tonbi' ? GAME_BALANCE.attacks.tonbi.radius : 32;
+      const hitDistanceSq = wasRushing && e.type === 'skater'
+        ? distanceToSegmentSquared(p.x, p.y, oldX, oldY, e.x, e.y)
+        : (p.x - e.x) ** 2 + (p.y - e.y) ** 2;
+      if ((EnemyTactics.canHit(e) || (wasRushing && e.type === 'skater')) &&
+          hitDistanceSq < hitRadius ** 2 && p.invincibleTimer <= 0) {
           // 通常被弾
           p.hp = Math.max(0, p.hp - e.atk);
           p.invincibleTimer = 0.8;
@@ -2543,6 +2583,7 @@ class AsaichiGame {
   damageEnemy(enemy, amount, fromX = null, fromY = null) {
     if (!enemy || !Number.isFinite(amount) || amount <= 0 || enemy.hp <= 0 || !this.enemies.includes(enemy)) return false;
     enemy.hp = Math.max(0, enemy.hp - amount);
+    if (EnemyTactics.isAttacking(enemy)) EnemyTactics.recover(this, enemy);
 
     // 1. 小さな被弾火花（体を白く覆わず、短時間だけ表示）
     enemy.hitFlashTimer = 0.08;
@@ -2638,7 +2679,7 @@ class AsaichiGame {
       // ドロップ位置が立入禁止エリア内、または壁に近すぎる場合は安全な通路位置にスナップ！
       let dropX = enemy.x;
       let dropY = enemy.y;
-      if (this.isInsideForbiddenArea(dropX, dropY, 20)) {
+      if (!this.isPointWalkable(dropX, dropY) || this.isInsideForbiddenArea(dropX, dropY, 20)) {
         dropY = 590 + Math.random() * 45; // メインストリート（590〜635）
         dropX = Math.max(30, Math.min(this.worldW - 30, dropX));
       }
@@ -2739,39 +2780,24 @@ class AsaichiGame {
   }
 
   // ========================================================
-  // 7. ドロップアイテム回収（マグネット吸引 ＆ 取得判定拡大でストレス完全ゼロ！）
+  // 7. アイテムは動かさず、ミケが触れたときだけ回収する。
   // ========================================================
-  updateDropItems(dt) {
+  updateDropItems(dt, fromX = this.player.x, fromY = this.player.y) {
     const p = this.player;
-    // 磁石吸引距離（基本85px、マグネットスキルでさらに拡大！）
-    const magnetRadius = 85 + (this.skills.magnet ? this.skills.magnet.level * 45 : 0);
-    // 直接回収判定距離（以前の26から45へ拡大！）
-    const collectRadius = 45;
 
     for (let i = this.dropItems.length - 1; i >= 0; i--) {
       const item = this.dropItems[i];
       item.life -= dt;
       item.age = (item.age || 0) + dt;
 
-      const dist = Math.hypot(p.x - item.x, p.y - item.y);
-
-      // ★直接回収判定
-      if (dist < collectRadius) {
-        this.collectItem(item);
+      if (item.life <= 0) {
         this.dropItems.splice(i, 1);
         continue;
       }
-
-      // ★マグネット吸引：プレイヤーが近づくとアイテムがスーッと引き寄せられる！
-      // 障害物のキワに落ちていてもプレイヤーに吸い付いて確実に拾える！
-      if (dist < magnetRadius && dist > 0) {
-        const pullSpeed = Math.min(dist, 420 * dt);
-        item.x += ((p.x - item.x) / dist) * pullSpeed;
-        item.y += ((p.y - item.y) / dist) * pullSpeed;
-      }
-
-      if (item.life <= 0) {
+      const distSq = distanceToSegmentSquared(item.x, item.y, fromX, fromY, p.x, p.y);
+      if (distSq <= GAME_BALANCE.items.pickupRadius ** 2) {
         this.dropItems.splice(i, 1);
+        this.collectItem(item);
       }
     }
   }
@@ -2828,16 +2854,18 @@ class AsaichiGame {
   spawnAllyCat() {
     const cfg = GAME_BALANCE.nora;
     const p = this.player;
-    const direction = Math.random() < 0.5 ? 1 : -1;
+    const direction = p.facing === -1 ? -1 : 1;
+    const startX = Math.max(25, Math.min(this.worldW - 25, p.x - direction * 70));
     if (this.allyCats.length >= cfg.maxActive) this.allyCats.shift();
     this.allyCats.push({
-      x: Math.max(25, Math.min(this.worldW - 25, p.x - direction * 290)),
-      y: Math.max(550, Math.min(665, p.y)),
-      baseY: Math.max(555, Math.min(650, p.y)),
+      x: this.isPointWalkable(startX, p.y) ? startX : p.x,
+      y: p.y,
+      baseY: p.y,
       direction, dir: direction > 0 ? 'right' : 'left',
       elapsed: 0, animFrame: 0, scale: 1, smokeTimer: 0, hits: new Map()
     });
     this.sound.playMeowRoar();
+    this.addComicPopup(p.x, p.y - 45, 'ノラが守る！', '#fbbf24', 0.8);
   }
 
   updateAllyCats(dt) {
@@ -2846,15 +2874,20 @@ class AsaichiGame {
       const cat = this.allyCats[i];
       cat.elapsed += dt;
       if (cat.elapsed >= cfg.duration) { this.allyCats.splice(i, 1); continue; }
-      // 街路内を左右に駆け抜ける。三角波の折返しでジグザグを描く。
-      cat.x += cat.direction * cfg.speed * dt;
-      if (cat.x < 25 || cat.x > this.worldW - 25) {
-        cat.x = Math.max(25, Math.min(this.worldW - 25, cat.x));
+      // ミケの周囲を往復して包囲を崩す。遠くへ走り去らない。
+      const p = this.player;
+      const minX = Math.max(25, p.x - cfg.patrolRadius), maxX = Math.min(this.worldW - 25, p.x + cfg.patrolRadius);
+      const nextX = Math.max(minX, Math.min(maxX, cat.x + cat.direction * cfg.speed * dt));
+      if (nextX <= minX || nextX >= maxX) {
         cat.direction *= -1;
       }
       const phase = (cat.elapsed / cfg.zigzagPeriod) % 1;
       const zigzag = 1 - 4 * Math.abs(phase - 0.5);
-      cat.y = Math.max(542, Math.min(682, cat.baseY + zigzag * cfg.amplitude));
+      cat.baseY += (p.y - cat.baseY) * Math.min(1, dt * 8);
+      const nextY = cat.baseY + zigzag * cfg.amplitude;
+      const beforeX = cat.x;
+      this.moveEnemy(cat, nextX - cat.x, nextY - cat.y);
+      if (dt > 0 && Math.abs(cat.x - beforeX) < 0.1) cat.direction *= -1;
       cat.dir = cat.direction > 0 ? 'right' : 'left';
       cat.animFrame = Math.floor(cat.elapsed * 12) % 4;
       cat.smokeTimer += dt;
@@ -2868,8 +2901,10 @@ class AsaichiGame {
         if (cat.elapsed < (cat.hits.get(enemy) || 0)) continue;
         cat.hits.set(enemy, cat.elapsed + cfg.hitCooldown);
         if (!this.damageEnemy(enemy, cfg.damage, cat.x, cat.y)) continue;
-        enemy.stunTimer = 0.3;
-        enemy.knockbackVx = cat.direction * 180;
+        enemy.stunTimer = 0.65;
+        const awayX = enemy.x - p.x, awayY = enemy.y - p.y, distance = Math.hypot(awayX, awayY) || 1;
+        enemy.knockbackVx = (awayX / distance || cat.direction) * cfg.knockback;
+        enemy.knockbackVy = awayY / distance * cfg.knockback;
         this.addParticle(enemy.x, enemy.y - 18, 'spark');
       }
     }
@@ -2985,6 +3020,8 @@ class AsaichiGame {
 
     // A. 背景マップ描画（新横長朝市マップ：SPICE COFFEE自転車屋台＆遠見岬神社石段）
     this.renderMap(ctx);
+
+    EnemyTactics.draw(this, ctx);
 
     // B. ドロップアイテム
     this.renderDropItems(ctx);
@@ -3896,14 +3933,6 @@ class AsaichiGame {
         ctx.save();
         ctx.translate(ix, iy);
 
-        // 1. 赤い情熱のオーラリング
-        const pulse = (Math.sin(now / 110) + 1) / 2;
-        ctx.strokeStyle = `rgba(239, 68, 68, ${0.5 + pulse * 0.5})`;
-        ctx.lineWidth = 2.5;
-        ctx.beginPath();
-        ctx.arc(0, 0, 16 + pulse * 4, 0, Math.PI * 2);
-        ctx.stroke();
-
         // 2. ラーメンどんぶり（黒×金の高級漆器どんぶり）
         ctx.fillStyle = '#1e1b4b'; // 漆黒の外側
         ctx.strokeStyle = '#f59e0b'; // 金の縁取り
@@ -3984,7 +4013,7 @@ class AsaichiGame {
       ctx.lineWidth = 2.2;
       ctx.beginPath();
       ctx.ellipse(item.x, item.y + 10, 18 + pulse * 7, 7 + pulse * 3, 0, 0, Math.PI * 2);
-      ctx.stroke();
+      if (item.type !== 'tantan') ctx.stroke();
 
       // 2. 頭上で上下にピョンピョン跳ねる下矢印マーカー（▼）
       const arrowBob = Math.sin(now / 130 + item.x) * 4;

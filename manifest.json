@@ -1,6 +1,6 @@
 {
-  "name": "勝浦朝市サバイバー！",
-  "short_name": "朝市サバイバー",
+  "name": "にゃんと多忙な勝浦朝市",
+  "short_name": "にゃんと多忙な勝浦朝市",
   "description": "ニャンと多忙な勝浦朝市！〜おつかい猫のヤンキー大乱闘〜 SFC超美麗ドット絵アクション",
   "start_url": "./index.html",
   "display_override": ["fullscreen", "standalone"],

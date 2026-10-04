@@ -204,14 +204,6 @@ const SKILL_DEFS = {
     maxLevel: 5,
     getDesc: (lv) => `移動速度 +${lv * 15}%！`
   },
-  magnet: {
-    id: 'magnet',
-    name: 'マグネットヒゲ',
-    icon: '🧲',
-    desc: '朝市アイテムを引き寄せる範囲が広がる！',
-    maxLevel: 5,
-    getDesc: (lv) => `アイテム吸引範囲 +${lv * 45}px！`
-  },
   spice: {
     id: 'spice',
     name: 'SPICEドリップ',

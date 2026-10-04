@@ -4,11 +4,11 @@
   <meta charset="UTF-8">
   <meta name="viewport" content="width=device-width, initial-scale=1.0, viewport-fit=cover">
   <meta name="apple-mobile-web-app-capable" content="yes">
-  <meta name="apple-mobile-web-app-title" content="朝市サバイバー">
+  <meta name="apple-mobile-web-app-title" content="にゃんと多忙な勝浦朝市">
   <meta name="apple-mobile-web-app-status-bar-style" content="black-translucent">
   <meta name="mobile-web-app-capable" content="yes">
   <meta name="theme-color" content="#080c10">
-  <title>ニャンと多忙な勝浦朝市！〜おつかい猫のヤンキー大乱闘〜 【SFC超美麗版】</title>
+  <title>にゃんと多忙な勝浦朝市！〜おつかい猫のヤンキー大乱闘〜 【SFC超美麗版】</title>
   <link rel="manifest" href="manifest.json">
   <link rel="apple-touch-icon" href="assets/apple-touch-icon.png">
   <link rel="stylesheet" href="style.css?v=20261001_joystick_v13">
@@ -65,7 +65,7 @@
             <span class="loading-cat">🐾</span>
             <span class="loading-fish">🐟</span>
           </div>
-          <h2 class="loading-title">勝浦朝市サバイバー</h2>
+          <h2 class="loading-title">にゃんと多忙な勝浦朝市</h2>
           <div id="loading-status-text" class="loading-status-text">朝市の品物を仕入れ中ニャ...</div>
           <div class="loading-bar-wrap">
             <div id="loading-bar-fill" class="loading-bar-fill"></div>
@@ -79,14 +79,14 @@
 
       <!-- 1. タイトル画面（ChatGPT生成の超美麗1枚絵全面＋STARTボタン連動ヒットボックス） -->
       <div id="title-overlay" class="overlay title-screen">
-        <img class="title-art" src="assets/title_bg.webp?v=20260929_webp_lightweight_v1" alt="ニャンと多忙な勝浦朝市！ おつかい猫のヤンキー大乱闘" draggable="false">
+        <img class="title-art" src="assets/title_bg.webp?v=20260929_webp_lightweight_v1" alt="にゃんと多忙な勝浦朝市！ おつかい猫のヤンキー大乱闘" draggable="false">
         <button id="btn-quick-start" class="sfc-start-hitbox" title="START 出撃！" aria-label="出撃してゲームを始める"><span class="mobile-start-label">出撃する ▶</span></button>
       </div>
 
       <!-- 3. 操作説明チュートリアルオーバーレイ -->
       <div id="tutorial-overlay" class="overlay hidden">
         <div class="overlay-card tutorial-card">
-          <h2 class="tutorial-title">🐾 勝浦朝市サバイバー指南書（遊び方）</h2>
+          <h2 class="tutorial-title">🐾 にゃんと多忙な勝浦朝市指南書（遊び方）</h2>
           
           <div class="tutorial-grid">
             <!-- カード1: 移動とオート攻撃 -->
@@ -110,17 +110,17 @@
             <div class="tuto-item highlight">
               <div class="tuto-icon">🚲💨👴👵</div>
               <div class="tuto-header">3. ６０代爆走タンデムバイク！</div>
-              <p>マップに現れる<strong>アイスコーヒー</strong>を拾うと、移動速度が上がり、タンデムクロスバイクが猛スピードで横断！<br>
-              <strong>「チリンチリ〜ン！」</strong>と敵集団を跳ね飛ばす！</p>
+              <p><strong>アイスコーヒー</strong>に触れて拾うと、ミケの向いている左右の方向へタンデムが走り、細い道を切り開く！<br>
+              移動速度も上がるので、その道を通って次のアイテムへ！</p>
             </div>
 
             <!-- カード4: 勝浦名物わらび餅（助太刀にゃんこ参上！） -->
             <div class="tuto-item">
               <div class="tuto-icon">🍡🐾⚡</div>
               <div class="tuto-header">4. 朝市名物わらび餅 ＆ 助太刀</div>
-              <p>🍡<strong>わらび餅</strong>: 赤ハチマキの格闘ノラネコが敵を急襲！<br>
-              ☕<strong>SPICE COFFEE</strong>: 暴走タンデム自転車が出現して敵を一網打尽！<br>
-              ※アイテムをすぐ拾うと、次の品物が早く出現！助っ人をつないで大群を突破するニャ！</p>
+              <p>🍡<strong>わらび餅</strong>: ノラがミケの近くをジグザグに走り、周囲の敵を押し返す！<br>
+              🍜<strong>勝浦タンタン麺</strong>: 神輿が広い範囲を押し返す！<br>
+              ※アイテムは吸い寄せられません。ミケを重ねて拾おう！早く拾うと次の品物が早く出現。<br>敵の「！」と地面の予告を見たら、その場所から離れてよけるニャ！</p>
             </div>
           </div>
 
@@ -227,10 +227,11 @@
 
   <!-- 分割スクリプト群（サウンド、定数、ゲーム本体） -->
   <script src="js/sound.js?v=20261001_media_v11"></script>
-  <script src="js/balance.js?v=20260930_rush_v7"></script>
-  <script src="js/constants.js?v=20260930_mobile_v6"></script>
+  <script src="js/balance.js?v=20261004_tactics_v14"></script>
+  <script src="js/constants.js?v=20261004_tactics_v14"></script>
   <script src="js/peace-scene.js?v=20260930_rush_v7"></script>
   <script src="js/mobile-ui.js?v=20261001_cutin_v12"></script>
-  <script src="js/game.js?v=20261001_joystick_v13"></script>
+  <script src="js/enemy-tactics.js?v=20261004_tactics_v14"></script>
+  <script src="js/game.js?v=20261004_tactics_v14"></script>
 </body>
 </html>
